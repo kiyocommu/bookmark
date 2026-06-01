@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Tab Bookmark Manager Cloud icon">
+  <rect width="512" height="512" rx="96" fill="#64779f"/>
+  <path d="M168 106h176c24 0 44 20 44 44v260c0 16-18 26-31 16l-101-75-101 75c-13 10-31 0-31-16V150c0-24 20-44 44-44z" fill="#ffffff"/>
+  <path d="M184 150h144" fill="none" stroke="#64779f" stroke-width="28" stroke-linecap="round"/>
+</svg>

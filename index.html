@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#e94560">
+  <link rel="icon" type="image/svg+xml" href="icons/app-icon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <title>Tab Bookmark Manager Cloud</title>
@@ -206,12 +209,63 @@
       z-index: 10;
     }
     #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .mobile-title,
+    .mobile-footer {
+      display: none;
+    }
     @media (max-width: 760px) {
       .header-inner { align-items: flex-start; }
-      main { grid-template-columns: 1fr; }
+      main {
+        grid-template-columns: 1fr;
+        padding-bottom: calc(84px + env(safe-area-inset-bottom));
+      }
       h1 { font-size: 16px; }
+      .full-title { display: none; }
+      .mobile-title { display: inline; }
+      .header-actions #btn-import,
+      .header-actions #btn-export {
+        display: none;
+      }
       .header-actions button { padding: 6px 8px; }
+      #save-panel {
+        display: none;
+      }
+      body.mobile-save-open #save-panel {
+        display: block;
+      }
       .card-head { gap: 6px; }
+      .mobile-footer {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 6;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px max(16px, env(safe-area-inset-right)) calc(9px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+        background: var(--panel);
+        border-top: 1px solid var(--line);
+        box-shadow: 0 -8px 22px rgba(50, 60, 90, 0.12);
+      }
+      .mobile-footer button {
+        min-width: 44px;
+        height: 36px;
+        padding: 0 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #btn-mobile-bookmark {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+        font-weight: 700;
+      }
+      body.mobile-save-open #btn-mobile-bookmark {
+        filter: brightness(0.92);
+        box-shadow: 0 0 0 2px rgba(233, 69, 96, 0.24);
+      }
     }
   </style>
 </head>
@@ -219,7 +273,7 @@
   <header>
     <div class="header-inner">
       <div>
-        <h1>Tab Bookmark Manager Cloud</h1>
+        <h1><span class="full-title">Tab Bookmark Manager Cloud</span><span class="mobile-title">TBMC</span></h1>
         <div id="sync-status">local</div>
       </div>
       <div class="header-actions">
@@ -232,7 +286,7 @@
   </header>
 
   <main>
-    <section class="panel">
+    <section class="panel" id="save-panel">
       <h2>ブックマークを保存</h2>
       <div class="form-grid">
         <input id="url-input" type="url" placeholder="URL">
@@ -274,6 +328,12 @@
 
   <input id="import-file" type="file" accept=".json" hidden>
   <div id="toast"></div>
+  <footer class="mobile-footer" aria-label="モバイル操作">
+    <button id="btn-mobile-bookmark" title="ブックマークを保存" aria-label="ブックマークを保存">B!</button>
+    <button id="btn-mobile-cloud" title="Cloud設定" aria-label="Cloud設定">Cloud</button>
+    <button id="btn-mobile-sync" title="同期" aria-label="同期">同期</button>
+    <button id="btn-mobile-theme" title="ライト/ダーク切替" aria-label="ライト/ダーク切替">■</button>
+  </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
@@ -569,6 +629,7 @@
       document.getElementById("title-input").value = "";
       document.getElementById("tags-input").value = "";
       document.getElementById("comment-input").value = "";
+      document.body.classList.remove("mobile-save-open");
       showToast(existing ? "更新しました" : "保存しました");
     }
 
@@ -634,6 +695,22 @@
       document.getElementById("btn-theme").addEventListener("click", () => {
         document.body.classList.toggle("dark");
         localStorage.setItem(THEME_KEY, document.body.classList.contains("dark") ? "dark" : "light");
+      });
+      document.getElementById("btn-mobile-bookmark").addEventListener("click", () => {
+        document.body.classList.toggle("mobile-save-open");
+        if (document.body.classList.contains("mobile-save-open")) {
+          document.getElementById("save-panel").scrollIntoView({ block: "start", behavior: "smooth" });
+          document.getElementById("url-input").focus({ preventScroll: true });
+        }
+      });
+      document.getElementById("btn-mobile-cloud").addEventListener("click", () => {
+        document.getElementById("btn-cloud").click();
+      });
+      document.getElementById("btn-mobile-sync").addEventListener("click", () => {
+        document.getElementById("btn-sync").click();
+      });
+      document.getElementById("btn-mobile-theme").addEventListener("click", () => {
+        document.getElementById("btn-theme").click();
       });
 
       const dialog = document.getElementById("cloud-dialog");
