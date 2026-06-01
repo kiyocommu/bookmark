@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#e94560">
+  <meta name="theme-color" content="#64779f">
   <link rel="icon" type="image/svg+xml" href="icons/app-icon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
@@ -19,7 +19,7 @@
       --line: #C5CCE0;
       --text: #1a1a2e;
       --muted: #6a7090;
-      --accent: #e94560;
+      --accent: #64779f;
       --card: #f8f9fd;
       --shadow: 0 8px 24px rgba(50, 60, 90, 0.10);
     }
@@ -30,6 +30,7 @@
       --line: #30415f;
       --text: #e6edf8;
       --muted: #9ca9bf;
+      --accent: #e94560;
       --card: #17243a;
       --shadow: 0 10px 30px rgba(0, 0, 0, 0.30);
     }
@@ -337,6 +338,7 @@
     const CLOUD_KEY = "tbm-cloud-config";
     const THEME_KEY = "tbm-cloud-theme";
     const DEFAULT_PROFILE = "private-tabs";
+    const CLOUD_BATCH_SIZE = 50;
     const MAX_PALETTE = 7;
     const PALETTE_HEX_RE = /^#[0-9a-fA-F]{6}$/;
 
@@ -504,6 +506,12 @@
       });
     }
 
+    function chunkArray(items, size) {
+      const chunks = [];
+      for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
+      return chunks;
+    }
+
     async function pullCloud() {
       if (!supabaseClient && !initSupabase()) return false;
       const { data, error } = await supabaseClient
@@ -521,17 +529,32 @@
     async function pushCloud() {
       if (!supabaseClient && !initSupabase()) return false;
       const rows = bookmarks.map(toCloudRow);
-      if (rows.length) {
+      for (const rowChunk of chunkArray(rows, CLOUD_BATCH_SIZE)) {
         const { error: upsertError } = await supabaseClient
           .from("tab_bookmarks")
-          .upsert(rows, { onConflict: "profile_id,id" });
+          .upsert(rowChunk, { onConflict: "profile_id,id" });
         if (upsertError) throw upsertError;
       }
-      const ids = rows.map(row => row.id);
-      let query = supabaseClient.from("tab_bookmarks").delete().eq("profile_id", cloudConfig.profileId);
-      if (ids.length) query = query.not("id", "in", `(${ids.map(id => `"${String(id).replace(/"/g, '\\"')}"`).join(",")})`);
-      const { error: deleteError } = await query;
-      if (deleteError) throw deleteError;
+
+      const { data: remoteRows, error: selectError } = await supabaseClient
+        .from("tab_bookmarks")
+        .select("id")
+        .eq("profile_id", cloudConfig.profileId);
+      if (selectError) throw selectError;
+
+      const localIds = new Set(rows.map(row => row.id));
+      const staleIds = (remoteRows || [])
+        .map(row => row.id)
+        .filter(id => id && !localIds.has(id));
+
+      for (const idChunk of chunkArray(staleIds, CLOUD_BATCH_SIZE)) {
+        const { error: deleteError } = await supabaseClient
+          .from("tab_bookmarks")
+          .delete()
+          .eq("profile_id", cloudConfig.profileId)
+          .in("id", idChunk);
+        if (deleteError) throw deleteError;
+      }
       return true;
     }
 
