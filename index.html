@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#e94560">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <title>Tab Bookmark Manager Cloud</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #EEF1F8;
+      --panel: #E2E7F2;
+      --input: #D4DBEC;
+      --line: #C5CCE0;
+      --text: #1a1a2e;
+      --muted: #6a7090;
+      --accent: #e94560;
+      --card: #f8f9fd;
+      --shadow: 0 8px 24px rgba(50, 60, 90, 0.10);
+    }
+    body.dark {
+      --bg: #0f1726;
+      --panel: #162238;
+      --input: #1f2c46;
+      --line: #30415f;
+      --text: #e6edf8;
+      --muted: #9ca9bf;
+      --card: #17243a;
+      --shadow: 0 10px 30px rgba(0, 0, 0, 0.30);
+    }
+    body {
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+    }
+    button, input, textarea {
+      font: inherit;
+    }
+    button {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: transparent;
+      color: var(--text);
+      cursor: pointer;
+      padding: 7px 10px;
+    }
+    button:hover { border-color: var(--accent); color: var(--accent); }
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    button.primary:hover { filter: brightness(0.95); color: #fff; }
+    button.danger { color: #b74a5b; }
+    input, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 8px 10px;
+      background: var(--input);
+      color: var(--text);
+      outline: none;
+      resize: vertical;
+    }
+    input:focus, textarea:focus { border-color: var(--accent); }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+      padding: 10px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
+    }
+    .header-inner {
+      max-width: 1040px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    h1 { color: var(--accent); font-size: 18px; }
+    .header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    #sync-status { color: var(--muted); font-size: 12px; min-width: 76px; text-align: right; }
+    main {
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 16px max(16px, env(safe-area-inset-right)) 32px max(16px, env(safe-area-inset-left));
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr);
+      gap: 16px;
+    }
+    .panel, .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+    .panel { padding: 14px; }
+    .panel h2 { font-size: 14px; margin-bottom: 10px; }
+    .form-grid { display: grid; gap: 9px; }
+    .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .search-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+      align-items: center;
+    }
+    .count { color: var(--muted); font-size: 12px; white-space: nowrap; }
+    #list { display: grid; gap: 10px; }
+    .empty {
+      padding: 36px 12px;
+      color: var(--muted);
+      text-align: center;
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+    }
+    .card { padding: 12px; display: grid; gap: 8px; }
+    .card-head { display: flex; gap: 8px; justify-content: space-between; align-items: flex-start; }
+    .card-main { min-width: 0; }
+    .card-actions {
+      display: flex;
+      flex: 0 0 auto;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 4px;
+      white-space: nowrap;
+    }
+    .card-icon-btn {
+      width: 28px;
+      height: 28px;
+      display: inline-grid;
+      place-items: center;
+      padding: 0;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1;
+      font-weight: 500;
+      flex: 0 0 28px;
+    }
+    .card-icon-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .card-icon-btn.delete {
+      font-size: 18px;
+    }
+    .title { font-weight: 700; color: var(--text); text-decoration: none; overflow-wrap: anywhere; }
+    .meta { color: var(--muted); font-size: 12px; }
+    .tags { display: flex; gap: 5px; flex-wrap: wrap; }
+    .tag {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 2px 7px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .comment, .highlight {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      line-height: 1.5;
+    }
+    .highlight {
+      border-left: 3px solid var(--accent);
+      padding-left: 9px;
+      color: var(--muted);
+      font-style: italic;
+    }
+    .palette { display: flex; gap: 4px; }
+    .swatch { width: 20px; height: 20px; border: 1px solid var(--line); border-radius: 4px; }
+    .thumb { max-width: 180px; max-height: 100px; border-radius: 6px; border: 1px solid var(--line); object-fit: cover; }
+    .edit-form { display: grid; gap: 8px; padding-top: 6px; border-top: 1px solid var(--line); }
+    .edit-form[hidden] { display: none; }
+    dialog {
+      width: min(560px, calc(100vw - 28px));
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0;
+      background: var(--card);
+      color: var(--text);
+      box-shadow: var(--shadow);
+    }
+    dialog::backdrop { background: rgba(0, 0, 0, 0.35); }
+    .modal-body { padding: 16px; display: grid; gap: 10px; }
+    .modal-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+    #toast {
+      position: fixed;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--text);
+      color: var(--bg);
+      border-radius: 999px;
+      padding: 8px 14px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s, transform 0.2s;
+      z-index: 10;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    @media (max-width: 760px) {
+      .header-inner { align-items: flex-start; }
+      main { grid-template-columns: 1fr; }
+      h1 { font-size: 16px; }
+      .header-actions button { padding: 6px 8px; }
+      .card-head { gap: 6px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <div>
+        <h1>Tab Bookmark Manager Cloud</h1>
+        <div id="sync-status">local</div>
+      </div>
+      <div class="header-actions">
+        <button id="btn-cloud">Cloud</button>
+        <button id="btn-import">Import</button>
+        <button id="btn-export">Export</button>
+        <button id="btn-theme" title="ライト/ダーク切替">■</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel">
+      <h2>ブックマークを保存</h2>
+      <div class="form-grid">
+        <input id="url-input" type="url" placeholder="URL">
+        <input id="title-input" type="text" placeholder="タイトル（空なら自動補完）">
+        <input id="tags-input" type="text" placeholder="タグ（カンマ・スペース・読点区切り）">
+        <textarea id="comment-input" rows="4" placeholder="コメント"></textarea>
+        <div class="actions">
+          <button class="primary" id="btn-add">保存</button>
+          <button id="btn-sync">同期</button>
+          <button class="danger" id="btn-clear">全削除</button>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="search-row">
+        <input id="search-input" type="search" placeholder="タイトル・URL・タグ・コメントで検索">
+        <span class="count" id="item-count">0 件</span>
+      </div>
+      <div id="list"></div>
+    </section>
+  </main>
+
+  <dialog id="cloud-dialog">
+    <div class="modal-head">
+      <strong>Cloud 設定</strong>
+      <button id="btn-cloud-close">×</button>
+    </div>
+    <div class="modal-body">
+      <label>Supabase URL<input id="cloud-url" type="url" placeholder="https://xxxxx.supabase.co"></label>
+      <label>anon key<input id="cloud-key" type="password" placeholder="eyJhbGciOi..."></label>
+      <label>共有ID<input id="cloud-profile" type="text" placeholder="例: private-tabs"></label>
+      <div class="actions">
+        <button class="primary" id="btn-cloud-save">保存して同期</button>
+        <button id="btn-cloud-local">ローカルモード</button>
+      </div>
+    </div>
+  </dialog>
+
+  <input id="import-file" type="file" accept=".json" hidden>
+  <div id="toast"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    "use strict";
+
+    const STORAGE_KEY = "tbm-cloud-bookmarks";
+    const CLOUD_KEY = "tbm-cloud-config";
+    const THEME_KEY = "tbm-cloud-theme";
+    const DEFAULT_PROFILE = "private-tabs";
+    const MAX_PALETTE = 7;
+    const PALETTE_HEX_RE = /^#[0-9a-fA-F]{6}$/;
+
+    let bookmarks = [];
+    let searchQuery = "";
+    let cloudConfig = loadCloudConfig();
+    let supabaseClient = null;
+    let toastTimer = null;
+
+    function showToast(message) {
+      const el = document.getElementById("toast");
+      el.textContent = message;
+      el.classList.add("show");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.classList.remove("show"), 1800);
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    }
+
+    function parseTags(raw) {
+      return String(raw ?? "").split(/[,、\s]+/).map(t => t.trim()).filter(Boolean);
+    }
+
+    function getDomain(url) {
+      try { return new URL(url).hostname; } catch { return ""; }
+    }
+
+    function generateId() {
+      return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    }
+
+    function formatDate(iso) {
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return "(日時不明)";
+      const pad = n => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    function extractImageUrl(image) {
+      if (typeof image !== "string") return null;
+      const match = image.match(/!\[[^\]]*]\(([^)]+)\)/);
+      const raw = match ? match[1] : image;
+      try {
+        const url = new URL(raw);
+        return url.protocol === "http:" || url.protocol === "https:" ? url.href : null;
+      } catch {
+        return null;
+      }
+    }
+
+    function normalizeBookmark(item) {
+      if (!item || typeof item !== "object") return null;
+      const url = typeof item.url === "string" ? item.url : "";
+      const savedAtRaw = item.savedAt || item.saved_at;
+      const savedAt = new Date(savedAtRaw);
+      return {
+        id: typeof item.id === "string" && item.id.trim() ? item.id.trim() : generateId(),
+        title: typeof item.title === "string" && item.title.trim() ? item.title.trim() : "(タイトルなし)",
+        url,
+        domain: typeof item.domain === "string" && item.domain ? item.domain : getDomain(url),
+        savedAt: Number.isNaN(savedAt.getTime()) ? new Date().toISOString() : savedAt.toISOString(),
+        tags: Array.isArray(item.tags) ? item.tags.filter(t => typeof t === "string").map(t => t.trim()).filter(Boolean) : [],
+        comment: typeof item.comment === "string" ? item.comment : "",
+        palette: Array.isArray(item.palette) ? item.palette.filter(c => typeof c === "string" && PALETTE_HEX_RE.test(c)).slice(0, MAX_PALETTE) : [],
+        publishedAt: typeof (item.publishedAt || item.published_at) === "string" ? (item.publishedAt || item.published_at) : null,
+        feedUrl: typeof (item.feedUrl || item.feed_url) === "string" ? (item.feedUrl || item.feed_url) : null,
+        highlight: typeof item.highlight === "string" ? item.highlight : null,
+        image: extractImageUrl(item.image) ? `![](${extractImageUrl(item.image)})` : null,
+      };
+    }
+
+    function dedupe(items) {
+      const seenIds = new Set();
+      return items.map(normalizeBookmark).filter(item => {
+        if (!item || seenIds.has(item.id)) return false;
+        seenIds.add(item.id);
+        return true;
+      });
+    }
+
+    function loadLocal() {
+      try { return dedupe(JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]")); } catch { return []; }
+    }
+
+    function saveLocal() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(bookmarks));
+    }
+
+    function loadCloudConfig() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(CLOUD_KEY) || "{}");
+        return {
+          url: parsed.url || "",
+          anonKey: parsed.anonKey || "",
+          profileId: parsed.profileId || DEFAULT_PROFILE,
+        };
+      } catch {
+        return { url: "", anonKey: "", profileId: DEFAULT_PROFILE };
+      }
+    }
+
+    function hasCloudConfig() {
+      return Boolean(cloudConfig.url && cloudConfig.anonKey && cloudConfig.profileId);
+    }
+
+    function initSupabase() {
+      if (!hasCloudConfig() || !window.supabase?.createClient) {
+        supabaseClient = null;
+        return null;
+      }
+      supabaseClient = window.supabase.createClient(cloudConfig.url, cloudConfig.anonKey);
+      return supabaseClient;
+    }
+
+    function saveCloudConfig(next) {
+      cloudConfig = {
+        url: String(next.url || "").trim().replace(/\/+$/, ""),
+        anonKey: String(next.anonKey || "").trim(),
+        profileId: String(next.profileId || DEFAULT_PROFILE).trim() || DEFAULT_PROFILE,
+      };
+      localStorage.setItem(CLOUD_KEY, JSON.stringify(cloudConfig));
+      initSupabase();
+      updateSyncStatus();
+    }
+
+    function updateSyncStatus() {
+      document.getElementById("sync-status").textContent = hasCloudConfig() ? `sync: ${cloudConfig.profileId}` : "local";
+    }
+
+    function toCloudRow(item) {
+      return {
+        profile_id: cloudConfig.profileId,
+        id: item.id,
+        title: item.title,
+        url: item.url,
+        domain: item.domain,
+        saved_at: item.savedAt,
+        tags: item.tags,
+        comment: item.comment,
+        palette: item.palette,
+        published_at: item.publishedAt || null,
+        feed_url: item.feedUrl || null,
+        highlight: item.highlight || null,
+        image: item.image || null,
+        updated_at: new Date().toISOString(),
+      };
+    }
+
+    function fromCloudRow(row) {
+      return normalizeBookmark({
+        id: row.id,
+        title: row.title,
+        url: row.url,
+        domain: row.domain,
+        savedAt: row.saved_at,
+        tags: row.tags,
+        comment: row.comment,
+        palette: row.palette,
+        publishedAt: row.published_at,
+        feedUrl: row.feed_url,
+        highlight: row.highlight,
+        image: row.image,
+      });
+    }
+
+    async function pullCloud() {
+      if (!supabaseClient && !initSupabase()) return false;
+      const { data, error } = await supabaseClient
+        .from("tab_bookmarks")
+        .select("*")
+        .eq("profile_id", cloudConfig.profileId)
+        .order("saved_at", { ascending: false });
+      if (error) throw error;
+      bookmarks = dedupe((data || []).map(fromCloudRow));
+      saveLocal();
+      render();
+      return true;
+    }
+
+    async function pushCloud() {
+      if (!supabaseClient && !initSupabase()) return false;
+      const rows = bookmarks.map(toCloudRow);
+      if (rows.length) {
+        const { error: upsertError } = await supabaseClient
+          .from("tab_bookmarks")
+          .upsert(rows, { onConflict: "profile_id,id" });
+        if (upsertError) throw upsertError;
+      }
+      const ids = rows.map(row => row.id);
+      let query = supabaseClient.from("tab_bookmarks").delete().eq("profile_id", cloudConfig.profileId);
+      if (ids.length) query = query.not("id", "in", `(${ids.map(id => `"${String(id).replace(/"/g, '\\"')}"`).join(",")})`);
+      const { error: deleteError } = await query;
+      if (deleteError) throw deleteError;
+      return true;
+    }
+
+    async function persist() {
+      saveLocal();
+      if (!hasCloudConfig()) return;
+      try {
+        await pushCloud();
+        updateSyncStatus();
+      } catch (error) {
+        console.warn("Cloud sync failed", error);
+        showToast("Cloud同期に失敗したためローカル保存しました");
+      }
+    }
+
+    function filterBookmarks() {
+      const q = searchQuery.toLowerCase();
+      const sorted = [...bookmarks].sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
+      if (!q) return sorted;
+      return sorted.filter(b => [b.title, b.url, b.domain, b.comment, b.highlight, ...(b.tags || [])].join(" ").toLowerCase().includes(q));
+    }
+
+    function render() {
+      const list = document.getElementById("list");
+      const items = filterBookmarks();
+      document.getElementById("item-count").textContent = `${bookmarks.length} 件`;
+      if (!items.length) {
+        list.innerHTML = '<div class="empty">保存されたブックマークはありません</div>';
+        return;
+      }
+      list.innerHTML = items.map((b, index) => {
+        const safeUrl = /^https?:\/\//.test(b.url) ? b.url : "";
+        const tags = b.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join("");
+        const palette = b.palette.filter(Boolean).map(c => `<span class="swatch" style="background:${escapeHtml(c)}" title="${escapeHtml(c)}"></span>`).join("");
+        const imageUrl = extractImageUrl(b.image);
+        return `
+          <article class="card" data-id="${escapeHtml(b.id)}">
+            <div class="card-head">
+              <div class="card-main">
+                ${safeUrl ? `<a class="title" href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(b.title)}</a>` : `<div class="title">${escapeHtml(b.title)}</div>`}
+                <div class="meta">${escapeHtml(b.domain)} · ${formatDate(b.savedAt)}</div>
+              </div>
+              <div class="card-actions">
+                <button class="card-icon-btn edit" data-action="edit" title="編集" aria-label="編集">✎</button>
+                <button class="card-icon-btn delete" data-action="delete" title="削除" aria-label="削除">×</button>
+              </div>
+            </div>
+            ${tags ? `<div class="tags">${tags}</div>` : ""}
+            ${b.comment ? `<div class="comment">${escapeHtml(b.comment)}</div>` : ""}
+            ${b.highlight ? `<div class="highlight">${escapeHtml(b.highlight)}</div>` : ""}
+            ${palette ? `<div class="palette">${palette}</div>` : ""}
+            ${imageUrl ? `<img class="thumb" src="${escapeHtml(imageUrl)}" alt="">` : ""}
+            <div class="edit-form" hidden>
+              <input class="edit-title" value="${escapeHtml(b.title)}" placeholder="タイトル">
+              <input class="edit-url" value="${escapeHtml(b.url)}" placeholder="URL">
+              <input class="edit-tags" value="${escapeHtml(b.tags.join(", "))}" placeholder="タグ">
+              <textarea class="edit-comment" rows="3" placeholder="コメント">${escapeHtml(b.comment)}</textarea>
+              <div class="actions">
+                <button class="primary" data-action="save-edit">保存</button>
+                <button data-action="cancel-edit">キャンセル</button>
+              </div>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    async function addBookmark() {
+      const url = document.getElementById("url-input").value.trim();
+      if (!url) { showToast("URLを入力してください"); return; }
+      let normalizedUrl;
+      try { normalizedUrl = new URL(url).href; } catch { showToast("URLの形式が正しくありません"); return; }
+      const existing = bookmarks.find(b => b.url === normalizedUrl);
+      if (existing && !confirm("同じURLのブックマークがあります。内容を更新しますか？")) return;
+      const title = document.getElementById("title-input").value.trim() || getDomain(normalizedUrl) || "(タイトルなし)";
+      const changes = {
+        title,
+        url: normalizedUrl,
+        domain: getDomain(normalizedUrl),
+        tags: parseTags(document.getElementById("tags-input").value),
+        comment: document.getElementById("comment-input").value.trim(),
+        savedAt: new Date().toISOString(),
+      };
+      if (existing) Object.assign(existing, changes);
+      else bookmarks.push({ id: generateId(), palette: [], publishedAt: null, feedUrl: null, highlight: null, image: null, ...changes });
+      await persist();
+      render();
+      document.getElementById("url-input").value = "";
+      document.getElementById("title-input").value = "";
+      document.getElementById("tags-input").value = "";
+      document.getElementById("comment-input").value = "";
+      showToast(existing ? "更新しました" : "保存しました");
+    }
+
+    async function importJSON(file) {
+      let data;
+      try { data = JSON.parse(await file.text()); } catch { showToast("JSONの解析に失敗しました"); return; }
+      if (!Array.isArray(data)) { showToast("形式が正しくありません"); return; }
+      const byId = new Map(bookmarks.map(b => [b.id, b]));
+      let count = 0;
+      dedupe(data).forEach(item => {
+        if (!byId.has(item.id)) {
+          bookmarks.push(item);
+          byId.set(item.id, item);
+          count += 1;
+        }
+      });
+      await persist();
+      render();
+      showToast(`${count} 件をインポートしました`);
+    }
+
+    function exportJSON() {
+      const blob = new Blob([JSON.stringify(bookmarks, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `tab-bookmarks-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast(`${bookmarks.length} 件をエクスポートしました`);
+    }
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      document.body.classList.toggle("dark", localStorage.getItem(THEME_KEY) === "dark");
+      initSupabase();
+      updateSyncStatus();
+      bookmarks = loadLocal();
+      render();
+      if (hasCloudConfig()) {
+        try { await pullCloud(); showToast("Cloudから読み込みました"); } catch { showToast("Cloud読み込みに失敗しました"); }
+      }
+
+      document.getElementById("btn-add").addEventListener("click", addBookmark);
+      document.getElementById("btn-sync").addEventListener("click", async () => {
+        if (!hasCloudConfig()) { showToast("Cloud設定を保存してください"); return; }
+        try { await pullCloud(); showToast("同期しました"); } catch { showToast("同期に失敗しました"); }
+      });
+      document.getElementById("search-input").addEventListener("input", e => { searchQuery = e.target.value.trim(); render(); });
+      document.getElementById("btn-export").addEventListener("click", exportJSON);
+      document.getElementById("btn-import").addEventListener("click", () => document.getElementById("import-file").click());
+      document.getElementById("import-file").addEventListener("change", async e => {
+        const file = e.target.files[0];
+        if (file) await importJSON(file);
+        e.target.value = "";
+      });
+      document.getElementById("btn-clear").addEventListener("click", async () => {
+        if (!bookmarks.length || !confirm(`${bookmarks.length} 件すべて削除しますか？`)) return;
+        bookmarks = [];
+        await persist();
+        render();
+        showToast("全削除しました");
+      });
+      document.getElementById("btn-theme").addEventListener("click", () => {
+        document.body.classList.toggle("dark");
+        localStorage.setItem(THEME_KEY, document.body.classList.contains("dark") ? "dark" : "light");
+      });
+
+      const dialog = document.getElementById("cloud-dialog");
+      document.getElementById("btn-cloud").addEventListener("click", () => {
+        document.getElementById("cloud-url").value = cloudConfig.url;
+        document.getElementById("cloud-key").value = cloudConfig.anonKey;
+        document.getElementById("cloud-profile").value = cloudConfig.profileId;
+        dialog.showModal();
+      });
+      document.getElementById("btn-cloud-close").addEventListener("click", () => dialog.close());
+      document.getElementById("btn-cloud-local").addEventListener("click", () => {
+        saveCloudConfig({ url: "", anonKey: "", profileId: DEFAULT_PROFILE });
+        dialog.close();
+        showToast("ローカルモードにしました");
+      });
+      document.getElementById("btn-cloud-save").addEventListener("click", async () => {
+        saveCloudConfig({
+          url: document.getElementById("cloud-url").value,
+          anonKey: document.getElementById("cloud-key").value,
+          profileId: document.getElementById("cloud-profile").value,
+        });
+        try {
+          const localItems = [...bookmarks];
+          await pullCloud();
+          const mergedById = new Map(bookmarks.map(item => [item.id, item]));
+          localItems.forEach(item => mergedById.set(item.id, item));
+          bookmarks = [...mergedById.values()];
+          await pushCloud();
+          saveLocal();
+          render();
+          dialog.close();
+          showToast("Cloud設定を保存しました");
+        } catch (error) {
+          console.warn(error);
+          showToast("Cloud接続に失敗しました");
+        }
+      });
+
+      document.getElementById("list").addEventListener("click", async e => {
+        const action = e.target.dataset.action;
+        if (!action) return;
+        const card = e.target.closest(".card");
+        const id = card?.dataset.id;
+        const item = bookmarks.find(b => b.id === id);
+        if (!item) return;
+        const form = card.querySelector(".edit-form");
+        if (action === "edit") form.hidden = false;
+        if (action === "cancel-edit") form.hidden = true;
+        if (action === "delete") {
+          if (!confirm("このブックマークを削除しますか？")) return;
+          bookmarks = bookmarks.filter(b => b.id !== id);
+          await persist();
+          render();
+          showToast("削除しました");
+        }
+        if (action === "save-edit") {
+          const nextUrl = form.querySelector(".edit-url").value.trim();
+          let normalizedUrl = nextUrl;
+          try { normalizedUrl = new URL(nextUrl).href; } catch {}
+          item.title = form.querySelector(".edit-title").value.trim() || "(タイトルなし)";
+          item.url = normalizedUrl;
+          item.domain = getDomain(normalizedUrl);
+          item.tags = parseTags(form.querySelector(".edit-tags").value);
+          item.comment = form.querySelector(".edit-comment").value.trim();
+          await persist();
+          render();
+          showToast("保存しました");
+        }
+      });
+    });
+  </script>
+</body>
+</html>
