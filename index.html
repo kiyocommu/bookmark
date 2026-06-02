@@ -95,8 +95,16 @@
       margin: 0 auto;
       padding: 16px max(16px, env(safe-area-inset-right)) 32px max(16px, env(safe-area-inset-left));
       display: grid;
-      grid-template-columns: 320px minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr) 320px;
       gap: 16px;
+    }
+    #save-panel {
+      grid-column: 2;
+      grid-row: 1;
+    }
+    #bookmarks-panel {
+      grid-column: 1;
+      grid-row: 1;
     }
     .panel, .card {
       background: var(--card);
@@ -217,11 +225,22 @@
     .mobile-bookmark-button {
       display: none;
     }
+    @media (min-width: 761px) {
+      body:not(.dark) h1,
+      body:not(.dark) .full-title {
+        color: #64779f;
+      }
+    }
     @media (max-width: 760px) {
       .header-inner { align-items: flex-start; }
       main {
         grid-template-columns: 1fr;
         padding-bottom: calc(32px + env(safe-area-inset-bottom));
+      }
+      #save-panel,
+      #bookmarks-panel {
+        grid-column: 1;
+        grid-row: auto;
       }
       dialog {
         width: min(380px, calc(100vw - 32px));
@@ -302,7 +321,7 @@
       </div>
     </section>
 
-    <section>
+    <section id="bookmarks-panel">
       <div class="search-row">
         <input id="search-input" type="search" placeholder="タイトル・URL・タグ・コメントで検索">
         <span class="count" id="item-count">0 件</span>
