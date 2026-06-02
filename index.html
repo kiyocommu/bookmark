@@ -115,6 +115,19 @@
     .panel { padding: 14px; }
     .panel h2 { font-size: 14px; margin-bottom: 10px; }
     .form-grid { display: grid; gap: 9px; }
+    .title-fetch-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+    }
+    #btn-fetch-title {
+      white-space: nowrap;
+    }
+    #btn-fetch-title[disabled] {
+      cursor: default;
+      opacity: 0.58;
+    }
     .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     .search-row {
       display: flex;
@@ -280,6 +293,9 @@
         display: block;
       }
       .card-head { gap: 6px; }
+      .title-fetch-row {
+        grid-template-columns: 1fr;
+      }
       body.mobile-save-open #btn-mobile-bookmark {
         background: var(--text);
         border-color: var(--text);
@@ -310,7 +326,10 @@
       <h2>ブックマークを保存</h2>
       <div class="form-grid">
         <input id="url-input" type="url" placeholder="URL">
-        <input id="title-input" type="text" placeholder="タイトル（空なら自動補完）">
+        <div class="title-fetch-row">
+          <input id="title-input" type="text" placeholder="タイトル（空なら自動補完）">
+          <button id="btn-fetch-title" type="button">タイトル取得</button>
+        </div>
         <input id="tags-input" type="text" placeholder="タグ（カンマ・スペース・読点区切り）">
         <textarea id="comment-input" rows="4" placeholder="コメント"></textarea>
         <div class="actions">
@@ -366,6 +385,7 @@
     let cloudConfig = loadCloudConfig();
     let supabaseClient = null;
     let toastTimer = null;
+    let titleFetchPromise = null;
 
     function showToast(message) {
       const el = document.getElementById("toast");
@@ -385,6 +405,117 @@
 
     function getDomain(url) {
       try { return new URL(url).hostname; } catch { return ""; }
+    }
+
+    function normalizeInputUrl(rawUrl) {
+      const value = String(rawUrl || "").trim();
+      if (!value) return "";
+      try {
+        const url = new URL(value);
+        return url.protocol === "http:" || url.protocol === "https:" ? url.href : "";
+      } catch {
+        return "";
+      }
+    }
+
+    function extractPageTitle(html) {
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      const title =
+        doc.querySelector('meta[property="og:title"]')?.content ||
+        doc.querySelector('meta[name="twitter:title"]')?.content ||
+        doc.querySelector("title")?.textContent ||
+        doc.querySelector("h1")?.textContent ||
+        "";
+      return title.replace(/\s+/g, " ").trim();
+    }
+
+    const TITLE_FETCH_STRATEGIES = [
+      {
+        name: "direct",
+        buildUrl: url => url,
+        extractText: async response => response.text(),
+      },
+      {
+        name: "allorigins-json",
+        buildUrl: url => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+        extractText: async response => {
+          const json = await response.json();
+          if (!json.contents) throw new Error("allorigins returned empty contents");
+          return json.contents;
+        },
+      },
+      {
+        name: "allorigins-raw",
+        buildUrl: url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+        extractText: async response => response.text(),
+      },
+      {
+        name: "codetabs",
+        buildUrl: url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+        extractText: async response => response.text(),
+      },
+      {
+        name: "corsproxy",
+        buildUrl: url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+        extractText: async response => response.text(),
+      },
+    ];
+
+    async function fetchPageTitle(url) {
+      for (const strategy of TITLE_FETCH_STRATEGIES) {
+        try {
+          const response = await fetch(strategy.buildUrl(url), {
+            cache: "no-store",
+            redirect: "follow",
+            headers: strategy.name === "direct" ? { "Accept": "text/html,application/xhtml+xml,text/plain,*/*" } : undefined,
+          });
+          if (!response.ok) throw new Error(`${strategy.name} returned ${response.status}`);
+          const text = await strategy.extractText(response);
+          const title = extractPageTitle(text);
+          if (title) return title;
+        } catch (error) {
+          console.warn(`Title fetch failed via ${strategy.name}`, error);
+        }
+      }
+      return "";
+    }
+
+    async function fillTitleFromUrl({ overwrite = false } = {}) {
+      if (titleFetchPromise) return titleFetchPromise;
+      titleFetchPromise = fillTitleFromUrlOnce({ overwrite });
+      try {
+        return await titleFetchPromise;
+      } finally {
+        titleFetchPromise = null;
+      }
+    }
+
+    async function fillTitleFromUrlOnce({ overwrite = false } = {}) {
+      const urlInput = document.getElementById("url-input");
+      const titleInput = document.getElementById("title-input");
+      const fetchBtn = document.getElementById("btn-fetch-title");
+      const normalizedUrl = normalizeInputUrl(urlInput.value);
+      if (!normalizedUrl) {
+        showToast("URLの形式が正しくありません");
+        return "";
+      }
+      if (!overwrite && titleInput.value.trim()) return titleInput.value.trim();
+
+      fetchBtn.disabled = true;
+      fetchBtn.textContent = "取得中...";
+      try {
+        const title = await fetchPageTitle(normalizedUrl);
+        if (!title) {
+          showToast("タイトルを取得できませんでした");
+          return "";
+        }
+        titleInput.value = title;
+        showToast("タイトルを取得しました");
+        return title;
+      } finally {
+        fetchBtn.disabled = false;
+        fetchBtn.textContent = "タイトル取得";
+      }
     }
 
     function generateId() {
@@ -648,7 +779,9 @@
       try { normalizedUrl = new URL(url).href; } catch { showToast("URLの形式が正しくありません"); return; }
       const existing = bookmarks.find(b => b.url === normalizedUrl);
       if (existing && !confirm("同じURLのブックマークがあります。内容を更新しますか？")) return;
-      const title = document.getElementById("title-input").value.trim() || getDomain(normalizedUrl) || "(タイトルなし)";
+      let title = document.getElementById("title-input").value.trim();
+      if (!title) title = await fillTitleFromUrl();
+      title = title || getDomain(normalizedUrl) || "(タイトルなし)";
       const changes = {
         title,
         url: normalizedUrl,
@@ -709,6 +842,9 @@
       }
 
       document.getElementById("btn-add").addEventListener("click", addBookmark);
+      document.getElementById("btn-fetch-title").addEventListener("click", () => fillTitleFromUrl({ overwrite: true }));
+      document.getElementById("url-input").addEventListener("change", () => fillTitleFromUrl());
+      document.getElementById("url-input").addEventListener("blur", () => fillTitleFromUrl());
       document.getElementById("btn-sync").addEventListener("click", async () => {
         if (!hasCloudConfig()) { showToast("Cloud設定を保存してください"); return; }
         try { await pullCloud(); showToast("同期しました"); } catch { showToast("同期に失敗しました"); }
