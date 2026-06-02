@@ -115,13 +115,24 @@
     .panel { padding: 14px; }
     .panel h2 { font-size: 14px; margin-bottom: 10px; }
     .form-grid { display: grid; gap: 9px; }
-    .title-fetch-row {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 8px;
-      align-items: center;
+    .url-input-wrap {
+      position: relative;
+    }
+    .url-input-wrap #url-input {
+      padding-right: 98px;
     }
     #btn-fetch-title {
+      position: absolute;
+      top: 50%;
+      right: 5px;
+      height: calc(100% - 10px);
+      min-height: 28px;
+      padding: 0 8px;
+      transform: translateY(-50%);
+      border-radius: 5px;
+      background: color-mix(in srgb, var(--input) 72%, var(--card));
+      font-size: 12px;
+      line-height: 1;
       white-space: nowrap;
     }
     #btn-fetch-title[disabled] {
@@ -293,8 +304,15 @@
         display: block;
       }
       .card-head { gap: 6px; }
-      .title-fetch-row {
-        grid-template-columns: 1fr;
+      .url-input-wrap #url-input {
+        padding-right: 82px;
+      }
+      #btn-fetch-title {
+        right: 4px;
+        height: calc(100% - 8px);
+        min-height: 26px;
+        padding: 0 7px;
+        font-size: 11px;
       }
       body.mobile-save-open #btn-mobile-bookmark {
         background: var(--text);
@@ -325,11 +343,11 @@
     <section class="panel" id="save-panel">
       <h2>ブックマークを保存</h2>
       <div class="form-grid">
-        <input id="url-input" type="url" placeholder="URL">
-        <div class="title-fetch-row">
-          <input id="title-input" type="text" placeholder="タイトル（空なら自動補完）">
+        <div class="url-input-wrap">
+          <input id="url-input" type="url" placeholder="URL">
           <button id="btn-fetch-title" type="button">タイトル取得</button>
         </div>
+        <input id="title-input" type="text" placeholder="タイトル（空なら自動補完）">
         <input id="tags-input" type="text" placeholder="タグ（カンマ・スペース・読点区切り）">
         <textarea id="comment-input" rows="4" placeholder="コメント"></textarea>
         <div class="actions">
