@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Tab Bookmark Manager Cloud の取扱説明書。Supabase同期、Chrome拡張との連携、スマホ操作、データ仕様、トラブル対応を人間とAIの両方に分かりやすく説明します。">
+  <meta name="manual:app" content="Tab Bookmark Manager Cloud">
+  <meta name="manual:updated" content="2026-06-02">
+  <meta name="manual:audience" content="human, ai">
+  <title>Tab Bookmark Manager Cloud 取扱説明書</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7fb;
+      --panel: #ffffff;
+      --panel-soft: #eef2f7;
+      --text: #172033;
+      --muted: #5f6b7a;
+      --border: #d8dee8;
+      --accent: #e94560;
+      --accent-2: #2f75b5;
+      --ok: #177245;
+      --warn: #b86b00;
+      --code-bg: #111827;
+      --code-text: #e5e7eb;
+      --shadow: 0 14px 32px rgba(23, 32, 51, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.75;
+      letter-spacing: 0;
+    }
+    a { color: var(--accent-2); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+      min-height: 100vh;
+    }
+    aside {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow: auto;
+      padding: 22px 18px;
+      border-right: 1px solid var(--border);
+      background: var(--panel);
+    }
+    .brand {
+      display: grid;
+      gap: 6px;
+      margin-bottom: 20px;
+    }
+    .brand strong {
+      color: var(--accent);
+      font-size: 1.05rem;
+      line-height: 1.3;
+    }
+    .brand span {
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+    nav ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 2px;
+    }
+    nav a {
+      display: block;
+      padding: 7px 9px;
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 0.9rem;
+    }
+    nav a:hover {
+      background: var(--panel-soft);
+      text-decoration: none;
+    }
+    main {
+      width: min(1120px, 100%);
+      padding: 34px clamp(18px, 4vw, 52px) 80px;
+    }
+    header.hero {
+      padding: 28px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+    .eyebrow {
+      color: var(--accent);
+      font-size: 0.82rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    h1, h2, h3 {
+      line-height: 1.35;
+      letter-spacing: 0;
+    }
+    h1 {
+      margin: 6px 0 12px;
+      font-size: clamp(2rem, 4vw, 3.1rem);
+    }
+    h2 {
+      margin: 42px 0 14px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+      font-size: 1.55rem;
+    }
+    h3 {
+      margin: 28px 0 10px;
+      font-size: 1.12rem;
+    }
+    p { margin: 0 0 13px; }
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 22px;
+    }
+    .summary div,
+    .card,
+    .callout,
+    details {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+    .summary div { padding: 14px; }
+    .summary b {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--text);
+    }
+    .summary span,
+    .muted { color: var(--muted); }
+    section { scroll-margin-top: 18px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .card { padding: 16px; }
+    .card h3 { margin-top: 0; }
+    .callout {
+      margin: 16px 0;
+      padding: 14px 16px;
+      border-left: 4px solid var(--accent-2);
+    }
+    .callout.warn { border-left-color: var(--warn); }
+    .callout.ok { border-left-color: var(--ok); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0 22px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    th, td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: var(--panel-soft);
+      font-weight: 700;
+    }
+    tr:last-child td { border-bottom: none; }
+    code, kbd {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.92em;
+    }
+    code {
+      padding: 0.12em 0.35em;
+      border-radius: 4px;
+      background: var(--panel-soft);
+    }
+    pre {
+      overflow: auto;
+      padding: 14px;
+      border-radius: 8px;
+      background: var(--code-bg);
+      color: var(--code-text);
+    }
+    pre code {
+      padding: 0;
+      background: transparent;
+      color: inherit;
+    }
+    details { margin: 12px 0; padding: 12px 14px; }
+    summary { cursor: pointer; font-weight: 700; }
+    .steps {
+      counter-reset: step;
+      display: grid;
+      gap: 10px;
+      margin: 14px 0;
+    }
+    .step {
+      position: relative;
+      padding: 14px 14px 14px 48px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+    .step::before {
+      counter-increment: step;
+      content: counter(step);
+      position: absolute;
+      left: 14px;
+      top: 15px;
+      width: 22px;
+      height: 22px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.82rem;
+    }
+    .flow {
+      display: grid;
+      gap: 8px;
+      margin: 14px 0;
+    }
+    .flow div {
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+    .flow div::before {
+      content: "→ ";
+      color: var(--accent);
+      font-weight: 700;
+    }
+    footer {
+      margin-top: 48px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    @media (max-width: 860px) {
+      .layout { display: block; }
+      aside {
+        position: static;
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+      nav ul {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .summary,
+      .grid {
+        grid-template-columns: 1fr;
+      }
+      main { padding-top: 24px; }
+    }
+    @media (max-width: 520px) {
+      nav ul { grid-template-columns: 1fr; }
+      header.hero { padding: 20px; }
+      h1 { font-size: 2rem; }
+      th, td { display: block; width: 100%; }
+      th { border-bottom: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside>
+      <div class="brand">
+        <strong>Tab Bookmark Manager Cloud</strong>
+        <span>取扱説明書 / AI readable manual</span>
+      </div>
+      <nav aria-label="目次">
+        <ul>
+          <li><a href="#overview">概要</a></li>
+          <li><a href="#quick-start">最短セットアップ</a></li>
+          <li><a href="#daily-use">基本操作</a></li>
+          <li><a href="#extension">Chrome拡張との連携</a></li>
+          <li><a href="#sync">同期の考え方</a></li>
+          <li><a href="#data">データ仕様</a></li>
+          <li><a href="#files">ファイル構成</a></li>
+          <li><a href="#trouble">トラブル対応</a></li>
+          <li><a href="#ai-notes">AI向け実装メモ</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <main>
+      <header class="hero" id="overview">
+        <div class="eyebrow">Cloud bookmark app / Supabase / PWA</div>
+        <h1>Tab Bookmark Manager Cloud 取扱説明書</h1>
+        <p>
+          PC の Chrome 拡張で保存したタブ情報を、Supabase 経由でスマホや別PCから見られるようにするための単独HTMLアプリです。
+          Chrome拡張は「現在のタブを高機能に保存する入口」として残し、Cloud版は「複数端末で閲覧・検索・編集する場所」として使います。
+        </p>
+        <div class="summary">
+          <div><b>保存先</b><span>Supabase 設定済みなら Cloud、未設定ならブラウザ内の localStorage。</span></div>
+          <div><b>スマホ対応</b><span>URL、タイトル、タグ、コメントを手入力して保存。ホーム画面追加も可能。</span></div>
+          <div><b>互換性</b><span>Chrome拡張版の JSON Import / Export 形式をそのまま利用。</span></div>
+        </div>
+      </header>
+
+      <section id="quick-start">
+        <h2>最短セットアップ</h2>
+        <div class="steps">
+          <div class="step">
+            <b>Supabase テーブルを作成</b>
+            <p><code>supabase-schema.sql</code> を Supabase の SQL Editor に貼り付けて実行します。テーブル名は <code>tab_bookmarks</code> です。</p>
+          </div>
+          <div class="step">
+            <b>Cloud版を開く</b>
+            <p><code>output/tab-bookmark-manager-cloud/index.html</code> をブラウザで開きます。GitHub Pages や静的Webサーバーに置いても動きます。</p>
+          </div>
+          <div class="step">
+            <b>Cloud 設定を保存</b>
+            <p>ヘッダーの <code>Cloud</code> ボタンから <code>Supabase URL</code>、<code>anon key</code>、<code>共有ID</code> を入力し、「保存して同期」を押します。</p>
+          </div>
+          <div class="step">
+            <b>同期状態を確認</b>
+            <p>ヘッダーが <code>sync: 共有ID</code> になれば Cloud 同期が有効です。<code>local</code> の場合はローカル保存です。</p>
+          </div>
+        </div>
+
+        <div class="callout ok">
+          <b>推奨:</b> 共有IDは <code>private-tabs-2026</code> のような推測されにくい文字列にしてください。複数端末で同じ共有IDを使うと同じブックマーク一覧を共有できます。
+        </div>
+      </section>
+
+      <section id="daily-use">
+        <h2>基本操作</h2>
+        <div class="grid">
+          <div class="card">
+            <h3>スマホ・Web版で保存</h3>
+            <p>スマホではヘッダーの <code>B!</code> ボタンで保存フォームを開き、<code>URL</code>、<code>タイトル</code>、<code>タグ</code>、<code>コメント</code> を入れて「保存」を押します。URL欄右端の「タイトル取得」でURLからページタイトルを取得できます。タイトルを空にしたまま保存した場合も自動取得を試し、取得できなければURLのドメインから仮タイトルを作ります。</p>
+          </div>
+          <div class="card">
+            <h3>検索</h3>
+            <p>検索欄に語句を入力すると、タイトル、URL、ドメイン、タグ、コメント、ハイライトを対象に絞り込みます。</p>
+          </div>
+          <div class="card">
+            <h3>編集・削除</h3>
+            <p>カードの「編集」からタイトル、URL、タグ、コメントを変更できます。「削除」は確認後に対象カードを削除します。</p>
+          </div>
+          <div class="card">
+            <h3>Import / Export</h3>
+            <p>Chrome拡張版と同じ JSON 配列形式を読み書きします。既存の <code>tab-bookmarks-YYYY-MM-DD.json</code> をCloud版へ移行できます。</p>
+          </div>
+        </div>
+
+        <h3>URL重複時の動作</h3>
+        <p>Web版で同じURLを保存しようとすると確認が出ます。更新を選ぶと既存カードのタイトル、タグ、コメント、保存日時を新しい入力内容で更新します。</p>
+      </section>
+
+      <section id="extension">
+        <h2>Chrome拡張との連携</h2>
+        <p>
+          Chrome拡張版は、現在のタブからタイトル、URL、選択テキスト、ページ画像、カラーパレット、RSSフィードURLなどを取得できます。
+          Cloud設定済みの場合、これらの情報を <code>tab_bookmarks</code> に保存します。
+        </p>
+        <div class="flow">
+          <div>PC Chromeでページを開く</div>
+          <div>拡張アイコンから Tab Bookmark Manager を開く</div>
+          <div>必要ならタグ、コメント、画像、色を選ぶ</div>
+          <div>「このタブを保存」を押す</div>
+          <div>Supabase設定済みならCloudへ保存。失敗時はローカルへ保存</div>
+          <div>スマホや別PCのCloud版で同じ共有IDを開く</div>
+        </div>
+
+        <table>
+          <thead><tr><th>状態</th><th>保存動作</th><th>ユーザーに見える表示</th></tr></thead>
+          <tbody>
+            <tr><td>Cloud未設定</td><td><code>chrome.storage.local</code> に保存</td><td><code>local</code></td></tr>
+            <tr><td>Cloud設定済み</td><td>Supabaseへ保存し、ローカルにもキャッシュ</td><td><code>sync: 共有ID</code></td></tr>
+            <tr><td>Cloud通信失敗</td><td>ローカル保存へフォールバック</td><td>トーストでCloud失敗を通知</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="sync">
+        <h2>同期の考え方</h2>
+        <p>
+          このアプリはログイン認証ではなく、Supabase の anon key と共有IDでデータを分けます。
+          同じ Supabase URL、anon key、共有IDを設定した端末は、同じ <code>profile_id</code> のデータを読み書きします。
+        </p>
+        <div class="callout warn">
+          <b>セキュリティ上の注意:</b> anon key と共有IDを知っている人は同じデータにアクセスできます。個人用・少人数用の運用を想定しています。
+        </div>
+        <h3>初回Cloud設定時</h3>
+        <p>既存Cloudデータを取得し、ローカルにあるブックマークとID単位でマージしてからCloudへ保存します。これにより、空のローカルデータでCloud側を消してしまう事故を避けます。</p>
+        <h3>通常保存時</h3>
+        <p>保存、編集、削除、インポート、全削除の後にCloudへ反映します。Cloud保存に失敗した場合も、入力内容はローカルに保持されます。</p>
+      </section>
+
+      <section id="data">
+        <h2>データ仕様</h2>
+        <table>
+          <thead><tr><th>フィールド</th><th>意味</th><th>型・例</th></tr></thead>
+          <tbody>
+            <tr><td><code>profile_id</code></td><td>共有ID。Supabase上で利用者・用途を分けるキー。</td><td><code>private-tabs</code></td></tr>
+            <tr><td><code>id</code></td><td>ブックマークの一意ID。</td><td>文字列</td></tr>
+            <tr><td><code>title</code></td><td>表示タイトル。</td><td><code>Example Page</code></td></tr>
+            <tr><td><code>url</code></td><td>保存したページURL。</td><td><code>https://example.com/</code></td></tr>
+            <tr><td><code>domain</code></td><td>URLから抽出したドメイン。</td><td><code>example.com</code></td></tr>
+            <tr><td><code>saved_at</code></td><td>保存日時。</td><td>ISO日時 / timestamptz</td></tr>
+            <tr><td><code>tags</code></td><td>タグ配列。</td><td><code>["仕事", "あとで読む"]</code></td></tr>
+            <tr><td><code>comment</code></td><td>メモ。</td><td>文字列</td></tr>
+            <tr><td><code>palette</code></td><td>ページから選んだ色。</td><td><code>["#E94560"]</code></td></tr>
+            <tr><td><code>published_at</code></td><td>記事公開日。取得できない場合は空。</td><td>ISO日時または <code>null</code></td></tr>
+            <tr><td><code>feed_url</code></td><td>RSSフィードURL。</td><td>URLまたは <code>null</code></td></tr>
+            <tr><td><code>highlight</code></td><td>保存時に選択していたテキスト。</td><td>文字列または <code>null</code></td></tr>
+            <tr><td><code>image</code></td><td>画像URL。既存形式ではMarkdown画像文字列。</td><td><code>![](https://...)</code></td></tr>
+          </tbody>
+        </table>
+
+        <h3>JSON Import / Export 形式</h3>
+        <pre><code>[
+  {
+    "id": "lxp0abc12",
+    "title": "Example Page",
+    "url": "https://example.com/",
+    "domain": "example.com",
+    "savedAt": "2026-06-01T12:00:00.000Z",
+    "tags": ["仕事", "あとで読む"],
+    "comment": "確認したいページ",
+    "palette": ["#E94560"],
+    "publishedAt": null,
+    "feedUrl": null,
+    "highlight": null,
+    "image": null
+  }
+]</code></pre>
+      </section>
+
+      <section id="files">
+        <h2>ファイル構成</h2>
+        <table>
+          <thead><tr><th>ファイル</th><th>役割</th></tr></thead>
+          <tbody>
+            <tr><td><code>index.html</code></td><td>Cloud版の本体。UI、localStorage、Supabase同期処理を含む単独HTML。</td></tr>
+            <tr><td><code>supabase-schema.sql</code></td><td><code>tab_bookmarks</code> テーブル、RLS、anon用ポリシー、インデックス定義。</td></tr>
+            <tr><td><code>manifest.webmanifest</code></td><td>PWAとしてホーム画面に追加するためのマニフェスト。</td></tr>
+            <tr><td><code>icons/</code></td><td>PWAアイコンとApple touch icon。</td></tr>
+            <tr><td><code>TabBookmarkManagerCloud-取扱説明書.html</code></td><td>この説明書。</td></tr>
+            <tr><td><code>TabBookmarkManagerCloud-変更履歴.md</code></td><td>Cloud版の変更履歴。</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="trouble">
+        <h2>トラブル対応</h2>
+        <details>
+          <summary><code>local</code> のままで同期されない</summary>
+          <p>Cloud設定が未保存、またはURL・anon key・共有IDのいずれかが空です。Cloudボタンから再入力してください。</p>
+        </details>
+        <details>
+          <summary>Cloud接続に失敗する</summary>
+          <p><code>supabase-schema.sql</code> を実行済みか、Supabase URLが <code>https://xxxxx.supabase.co</code> 形式か、anon keyを使っているか確認してください。</p>
+        </details>
+        <details>
+          <summary>スマホで保存できない</summary>
+          <p>URL欄に完全なURLを入力してください。例: <code>https://example.com/</code>。<code>example.com</code> だけではURLとして扱われません。</p>
+        </details>
+        <details>
+          <summary>画像が表示されない</summary>
+          <p>初期版は画像ファイル本体を保存せず、画像URLだけを保存します。元サイトが画像直リンクを拒否している場合、サムネイルが表示されないことがあります。</p>
+        </details>
+        <details>
+          <summary>別端末に同じデータが出ない</summary>
+          <p>Supabase URL、anon key、共有IDが完全に同じか確認してください。共有IDが1文字でも違うと別データとして扱われます。</p>
+        </details>
+      </section>
+
+      <section id="ai-notes">
+        <h2>AI向け実装メモ</h2>
+        <div class="callout">
+          この節は、将来AIエージェントが修正・拡張する時に必要な仕様を短く固定するためのものです。
+        </div>
+        <table>
+          <thead><tr><th>項目</th><th>仕様</th></tr></thead>
+          <tbody>
+            <tr><td>Cloudテーブル</td><td><code>public.tab_bookmarks</code></td></tr>
+            <tr><td>主キー</td><td><code>(profile_id, id)</code></td></tr>
+            <tr><td>共有単位</td><td><code>profile_id</code>。UI上は「共有ID」。</td></tr>
+            <tr><td>Web版設定保存</td><td><code>localStorage</code> の <code>tbm-cloud-config</code></td></tr>
+            <tr><td>Web版ローカルデータ</td><td><code>localStorage</code> の <code>tbm-cloud-bookmarks</code></td></tr>
+            <tr><td>拡張版設定保存</td><td><code>chrome.storage.local</code> の <code>tbm_cloud_config</code></td></tr>
+            <tr><td>拡張版ローカルデータ</td><td><code>chrome.storage.local</code> の <code>tab_bookmarks</code></td></tr>
+            <tr><td>Cloudライブラリ</td><td>Web版は <code>@supabase/supabase-js@2</code> CDN。拡張版は Supabase REST API を <code>fetch</code> で呼ぶ。</td></tr>
+            <tr><td>保存方針</td><td>Cloud優先。失敗時はローカル保存へフォールバック。</td></tr>
+            <tr><td>画像方針</td><td>Supabase Storageは未使用。画像URLまたはMarkdown画像文字列を保存。</td></tr>
+          </tbody>
+        </table>
+
+        <h3>変更時の確認コマンド</h3>
+        <pre><code>node --check output/chrome-extension/popup.js
+node --check &lt;(perl -0ne 'while (/&lt;script(?: [^&gt;]*)?&gt;(.*?)&lt;\\/script&gt;/sg) { print $1, "\n" }' output/tab-bookmark-manager-cloud/index.html)</code></pre>
+        <p>HTML説明書自体は静的HTMLです。見た目を変えた場合は、PC幅とスマホ幅の両方で本文、表、コードブロックが横にはみ出さないことを確認してください。</p>
+      </section>
+
+      <footer>
+        <p>最終更新: 2026-06-01 / 対象: Tab Bookmark Manager Cloud 初期版</p>
+      </footer>
+    </main>
+  </div>
+</body>
+</html>
