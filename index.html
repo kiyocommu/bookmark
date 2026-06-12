@@ -88,6 +88,21 @@
       gap: 12px;
     }
     h1 { color: var(--accent); font-size: 18px; }
+    .title-sync-button {
+      border: 0;
+      border-radius: 4px;
+      padding: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      font-weight: 700;
+      text-align: left;
+    }
+    .title-sync-button:hover,
+    .title-sync-button:focus {
+      color: var(--accent);
+      text-decoration: underline;
+    }
     .header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
     #sync-status { color: var(--muted); font-size: 12px; min-width: 76px; text-align: right; }
     main {
@@ -354,7 +369,7 @@
   <header>
     <div class="header-inner">
       <div>
-        <h1><span class="full-title">Tab Bookmark Manager Cloud</span><span class="mobile-title">TBookmarkMC</span></h1>
+        <h1><button class="title-sync-button" id="btn-title-sync" type="button" title="Cloudから同期" aria-label="Cloudから同期"><span class="full-title">Tab Bookmark Manager Cloud</span><span class="mobile-title">TBookmarkMC</span></button></h1>
         <div id="sync-status">local</div>
       </div>
       <div class="header-actions">
@@ -938,6 +953,23 @@
       }
     }
 
+    async function syncFromCloud({ loadingMessage = "同期中..." } = {}) {
+      if (!hasCloudConfig()) {
+        showToast("Cloud設定を保存してください");
+        return false;
+      }
+      showToast(loadingMessage);
+      try {
+        await pullCloud();
+        showToast("同期しました");
+        return true;
+      } catch (error) {
+        console.warn("Cloud sync failed", error);
+        showToast("同期に失敗しました");
+        return false;
+      }
+    }
+
     async function importJSON(file) {
       let data;
       try { data = JSON.parse(await file.text()); } catch { showToast("JSONの解析に失敗しました"); return; }
@@ -980,14 +1012,12 @@
       await handleQuickAdd(readQuickAddParams());
 
       document.getElementById("btn-add").addEventListener("click", addBookmark);
+      document.getElementById("btn-title-sync").addEventListener("click", () => syncFromCloud());
       document.getElementById("btn-copy-bookmarklet").addEventListener("click", copyBookmarkletCode);
       document.getElementById("btn-fetch-title").addEventListener("click", () => fillTitleFromUrl({ overwrite: true }));
       document.getElementById("url-input").addEventListener("change", () => fillTitleFromUrl());
       document.getElementById("url-input").addEventListener("blur", () => fillTitleFromUrl());
-      document.getElementById("btn-sync").addEventListener("click", async () => {
-        if (!hasCloudConfig()) { showToast("Cloud設定を保存してください"); return; }
-        try { await pullCloud(); showToast("同期しました"); } catch { showToast("同期に失敗しました"); }
-      });
+      document.getElementById("btn-sync").addEventListener("click", () => syncFromCloud());
       document.getElementById("search-input").addEventListener("input", e => { searchQuery = e.target.value.trim(); render(); });
       document.getElementById("btn-export").addEventListener("click", exportJSON);
       document.getElementById("btn-import").addEventListener("click", () => document.getElementById("import-file").click());
