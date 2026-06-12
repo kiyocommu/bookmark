@@ -115,7 +115,6 @@
     .panel { padding: 14px; }
     .panel h2 { font-size: 14px; margin-bottom: 10px; }
     .form-grid { display: grid; gap: 9px; }
-<<<<<<< Updated upstream
     .url-input-wrap {
       position: relative;
     }
@@ -134,15 +133,6 @@
       background: color-mix(in srgb, var(--input) 72%, var(--card));
       font-size: 12px;
       line-height: 1;
-=======
-    .title-fetch-row {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 8px;
-      align-items: center;
-    }
-    #btn-fetch-title {
->>>>>>> Stashed changes
       white-space: nowrap;
     }
     #btn-fetch-title[disabled] {
@@ -342,7 +332,6 @@
         display: block;
       }
       .card-head { gap: 6px; }
-<<<<<<< Updated upstream
       .url-input-wrap #url-input {
         padding-right: 82px;
       }
@@ -352,10 +341,6 @@
         min-height: 26px;
         padding: 0 7px;
         font-size: 11px;
-=======
-      .title-fetch-row {
-        grid-template-columns: 1fr;
->>>>>>> Stashed changes
       }
       body.mobile-save-open #btn-mobile-bookmark {
         background: var(--text);
@@ -386,19 +371,11 @@
     <section class="panel" id="save-panel">
       <h2>ブックマークを保存</h2>
       <div class="form-grid">
-<<<<<<< Updated upstream
         <div class="url-input-wrap">
           <input id="url-input" type="url" placeholder="URL">
           <button id="btn-fetch-title" type="button">タイトル取得</button>
         </div>
         <input id="title-input" type="text" placeholder="タイトル（空なら自動補完）">
-=======
-        <input id="url-input" type="url" placeholder="URL">
-        <div class="title-fetch-row">
-          <input id="title-input" type="text" placeholder="タイトル（空なら自動補完）">
-          <button id="btn-fetch-title" type="button">タイトル取得</button>
-        </div>
->>>>>>> Stashed changes
         <input id="tags-input" type="text" placeholder="タグ（カンマ・スペース・読点区切り）">
         <textarea id="comment-input" rows="4" placeholder="コメント"></textarea>
         <div class="actions">
@@ -526,7 +503,6 @@
       }
     }
 
-<<<<<<< Updated upstream
     function readQuickAddParams() {
       const params = new URLSearchParams(window.location.search);
       if (params.get("quickAdd") !== "1") return null;
@@ -547,8 +523,6 @@
       document.getElementById("save-panel").scrollIntoView({ block: "start", behavior: "smooth" });
     }
 
-=======
->>>>>>> Stashed changes
     function extractPageTitle(html) {
       const doc = new DOMParser().parseFromString(html, "text/html");
       const title =
@@ -909,14 +883,9 @@
       let normalizedUrl;
       try { normalizedUrl = new URL(url).href; } catch { showToast("URLの形式が正しくありません"); return; }
       const existing = bookmarks.find(b => b.url === normalizedUrl);
-<<<<<<< Updated upstream
       if (existing && !options.skipDuplicateConfirm && !confirm("同じURLのブックマークがあります。内容を更新しますか？")) return false;
       let title = options.title ?? document.getElementById("title-input").value.trim();
       if (!title && options.url) title = await fetchPageTitle(normalizedUrl);
-=======
-      if (existing && !confirm("同じURLのブックマークがあります。内容を更新しますか？")) return;
-      let title = document.getElementById("title-input").value.trim();
->>>>>>> Stashed changes
       if (!title) title = await fillTitleFromUrl();
       title = title || getDomain(normalizedUrl) || "(タイトルなし)";
       const changes = {
@@ -1011,10 +980,7 @@
       await handleQuickAdd(readQuickAddParams());
 
       document.getElementById("btn-add").addEventListener("click", addBookmark);
-<<<<<<< Updated upstream
       document.getElementById("btn-copy-bookmarklet").addEventListener("click", copyBookmarkletCode);
-=======
->>>>>>> Stashed changes
       document.getElementById("btn-fetch-title").addEventListener("click", () => fillTitleFromUrl({ overwrite: true }));
       document.getElementById("url-input").addEventListener("change", () => fillTitleFromUrl());
       document.getElementById("url-input").addEventListener("blur", () => fillTitleFromUrl());
