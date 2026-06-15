@@ -103,6 +103,26 @@
       color: var(--accent);
       text-decoration: underline;
     }
+    .mobile-logo-mark {
+      position: relative;
+      display: none;
+      width: 16px;
+      height: 20px;
+      background: currentColor;
+      border-radius: 5px 5px 2px 2px;
+      clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 74%, 0 100%);
+    }
+    .mobile-logo-mark::before {
+      content: "";
+      position: absolute;
+      top: 4px;
+      left: 50%;
+      width: 10px;
+      height: 3px;
+      border-radius: 999px;
+      background: var(--panel);
+      transform: translateX(-50%);
+    }
     .header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
     #sync-status { color: var(--muted); font-size: 12px; min-width: 76px; text-align: right; }
     main {
@@ -288,7 +308,7 @@
       z-index: 10;
     }
     #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-    .mobile-title,
+    .mobile-logo-mark,
     .mobile-bookmark-button {
       display: none;
     }
@@ -318,7 +338,18 @@
       }
       h1 { font-size: 16px; }
       .full-title { display: none; }
-      .mobile-title { display: inline; }
+      .title-sync-button {
+        width: 24px;
+        height: 24px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .title-sync-button:hover,
+      .title-sync-button:focus {
+        text-decoration: none;
+      }
+      .mobile-logo-mark { display: block; }
       .header-actions #btn-import,
       .header-actions #btn-export {
         display: none;
@@ -369,7 +400,7 @@
   <header>
     <div class="header-inner">
       <div>
-        <h1><button class="title-sync-button" id="btn-title-sync" type="button" title="Cloudから同期" aria-label="Cloudから同期"><span class="full-title">Tab Bookmark Manager Cloud</span><span class="mobile-title">TBookmarkMC</span></button></h1>
+        <h1><button class="title-sync-button" id="btn-title-sync" type="button" title="Cloudから同期" aria-label="Cloudから同期"><span class="full-title">Tab Bookmark Manager Cloud</span><span class="mobile-logo-mark" aria-hidden="true"></span></button></h1>
         <div id="sync-status">local</div>
       </div>
       <div class="header-actions">
