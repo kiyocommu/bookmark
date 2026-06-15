@@ -87,6 +87,9 @@
       justify-content: space-between;
       gap: 12px;
     }
+    .header-brand {
+      min-width: 0;
+    }
     h1 { color: var(--accent); font-size: 18px; }
     .title-sync-button {
       border: 0;
@@ -319,7 +322,31 @@
       }
     }
     @media (max-width: 760px) {
-      .header-inner { align-items: flex-start; }
+      header {
+        padding-top: 8px;
+        padding-bottom: 8px;
+      }
+      .header-inner {
+        align-items: center;
+        gap: 8px;
+      }
+      .header-brand {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+      #sync-status {
+        min-width: 0;
+        max-width: 118px;
+        overflow: hidden;
+        text-align: left;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 11px;
+        line-height: 1;
+      }
       main {
         grid-template-columns: 1fr;
         padding-bottom: calc(32px + env(safe-area-inset-bottom));
@@ -353,6 +380,10 @@
       .header-actions #btn-import,
       .header-actions #btn-export {
         display: none;
+      }
+      .header-actions {
+        flex: 0 0 auto;
+        gap: 6px;
       }
       .header-actions button { padding: 6px 8px; }
       .mobile-bookmark-button {
@@ -399,7 +430,7 @@
 <body>
   <header>
     <div class="header-inner">
-      <div>
+      <div class="header-brand">
         <h1><button class="title-sync-button" id="btn-title-sync" type="button" title="Cloudから同期" aria-label="Cloudから同期"><span class="full-title">Tab Bookmark Manager Cloud</span><span class="mobile-logo-mark" aria-hidden="true"></span></button></h1>
         <div id="sync-status">local</div>
       </div>
