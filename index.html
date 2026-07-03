@@ -178,6 +178,48 @@
       opacity: 0.58;
     }
     .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .tag-autocomplete {
+      position: relative;
+      width: 100%;
+    }
+    .tag-suggestion-list {
+      position: absolute;
+      top: calc(100% + 3px);
+      left: 0;
+      right: 0;
+      z-index: 20;
+      max-height: 190px;
+      overflow-y: auto;
+      padding: 3px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+    .tag-suggestion-list[hidden] { display: none; }
+    .tag-suggestion {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 7px 8px;
+      border: 0;
+      border-radius: 4px;
+      background: transparent;
+      color: var(--text);
+      text-align: left;
+    }
+    .tag-suggestion:hover,
+    .tag-suggestion.active {
+      background: var(--input);
+      color: var(--accent);
+    }
+    .tag-suggestion small {
+      flex: 0 0 auto;
+      color: var(--muted);
+      font-size: 10px;
+    }
     .bookmarklet-helper {
       display: grid;
       gap: 7px;
@@ -213,6 +255,22 @@
       align-items: center;
     }
     .count { color: var(--muted); font-size: 12px; white-space: nowrap; }
+    #btn-archive-view {
+      display: inline-grid;
+      place-items: center;
+      flex: 0 0 auto;
+      width: 34px;
+      height: 34px;
+      padding: 0;
+      color: var(--muted);
+    }
+    #btn-archive-view svg { display: block; }
+    #btn-archive-view:hover { color: var(--accent); }
+    #btn-archive-view.active {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .card-icon-btn svg { display: block; }
     #list { display: grid; gap: 10px; }
     .empty {
       padding: 36px 12px;
@@ -462,7 +520,9 @@
           <button id="btn-fetch-title" type="button">タイトル取得</button>
         </div>
         <input id="title-input" type="text" placeholder="タイトル（空なら自動補完）">
-        <input id="tags-input" type="text" placeholder="タグ（カンマ・スペース・読点区切り）">
+        <div class="tag-autocomplete">
+          <input id="tags-input" type="text" placeholder="タグ（カンマ・スペース・読点区切り）">
+        </div>
         <textarea id="comment-input" rows="4" placeholder="コメント"></textarea>
         <div class="actions">
           <button class="primary" id="btn-add">保存</button>
@@ -484,6 +544,7 @@
       <div class="search-row">
         <input id="search-input" type="search" placeholder="タイトル・URL・タグ・コメントで検索">
         <span class="count" id="item-count">0 件</span>
+        <button id="btn-archive-view" title="アーカイブを表示" aria-label="アーカイブを表示" aria-pressed="false"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="5" rx="1"/><path d="M4.5 9v10a1 1 0 0 0 1 1h13a1 1 0 0 0 1-1V9"/><path d="M10 13.5h4"/></svg></button>
       </div>
       <div id="list"></div>
     </section>
@@ -522,6 +583,7 @@
 
     let bookmarks = [];
     let searchQuery = "";
+    let showArchived = false;
     let cloudConfig = loadCloudConfig();
     let supabaseClient = null;
     let toastTimer = null;
@@ -572,6 +634,148 @@
 
     function parseTags(raw) {
       return String(raw ?? "").split(/[,、\s]+/).map(t => t.trim()).filter(Boolean);
+    }
+
+    const MAX_TAG_SUGGESTIONS = 8;
+
+    function getTagSuggestions(raw, treatAllAsSelected = false) {
+      const value = String(raw ?? "");
+      const separatorMatches = [...value.matchAll(/[,、\s]+/g)];
+      const lastSeparator = separatorMatches.at(-1);
+      const tokenStart = lastSeparator ? lastSeparator.index + lastSeparator[0].length : 0;
+      const currentToken = treatAllAsSelected
+        ? ""
+        : value.slice(tokenStart).trim().toLocaleLowerCase();
+      const selectedTags = new Set(
+        parseTags(treatAllAsSelected ? value : value.slice(0, tokenStart))
+          .map(tag => tag.toLocaleLowerCase())
+      );
+      const tagCounts = new Map();
+
+      bookmarks.forEach(bookmark => {
+        (bookmark.tags || []).forEach(tag => {
+          if (typeof tag !== "string" || !tag.trim()) return;
+          const displayName = tag.trim();
+          const key = displayName.toLocaleLowerCase();
+          const existing = tagCounts.get(key);
+          if (existing) existing.count += 1;
+          else tagCounts.set(key, { name: displayName, count: 1 });
+        });
+      });
+
+      return [...tagCounts.entries()]
+        .filter(([key]) => !selectedTags.has(key) && (!currentToken || key.startsWith(currentToken)))
+        .map(([, entry]) => entry)
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "ja"))
+        .slice(0, MAX_TAG_SUGGESTIONS);
+    }
+
+    let tagSuggestionId = 0;
+    function setupTagAutocomplete(input) {
+      const wrapper = input.closest(".tag-autocomplete");
+      if (!wrapper || wrapper.querySelector(".tag-suggestion-list")) return;
+
+      const list = document.createElement("div");
+      const listId = `tag-suggestions-${++tagSuggestionId}`;
+      list.id = listId;
+      list.className = "tag-suggestion-list";
+      list.setAttribute("role", "listbox");
+      list.hidden = true;
+      wrapper.appendChild(list);
+
+      input.setAttribute("autocomplete", "off");
+      input.setAttribute("role", "combobox");
+      input.setAttribute("aria-autocomplete", "list");
+      input.setAttribute("aria-controls", listId);
+      input.setAttribute("aria-expanded", "false");
+
+      let suggestions = [];
+      let activeIndex = -1;
+      let appendMode = false;
+
+      function closeSuggestions() {
+        suggestions = [];
+        activeIndex = -1;
+        list.hidden = true;
+        list.innerHTML = "";
+        input.setAttribute("aria-expanded", "false");
+        input.removeAttribute("aria-activedescendant");
+      }
+
+      function setActiveIndex(index) {
+        if (!suggestions.length) return;
+        activeIndex = (index + suggestions.length) % suggestions.length;
+        list.querySelectorAll(".tag-suggestion").forEach((option, optionIndex) => {
+          const isActive = optionIndex === activeIndex;
+          option.classList.toggle("active", isActive);
+          option.setAttribute("aria-selected", String(isActive));
+          if (isActive) input.setAttribute("aria-activedescendant", option.id);
+        });
+      }
+
+      function selectSuggestion(index) {
+        const suggestion = suggestions[index];
+        if (!suggestion) return;
+        if (appendMode) {
+          const existingValue = input.value.trim().replace(/[,、]+$/, "");
+          input.value = existingValue
+            ? `${existingValue}, ${suggestion.name}, `
+            : `${suggestion.name}, `;
+        } else {
+          const separatorMatches = [...input.value.matchAll(/[,、\s]+/g)];
+          const lastSeparator = separatorMatches.at(-1);
+          const tokenStart = lastSeparator ? lastSeparator.index + lastSeparator[0].length : 0;
+          input.value = `${input.value.slice(0, tokenStart)}${suggestion.name}, `;
+        }
+        closeSuggestions();
+        input.focus();
+      }
+
+      function renderSuggestions(treatAllAsSelected = false) {
+        appendMode = treatAllAsSelected && input.value.trim().length > 0;
+        suggestions = getTagSuggestions(input.value, appendMode);
+        activeIndex = -1;
+        list.innerHTML = "";
+        if (!suggestions.length) {
+          closeSuggestions();
+          return;
+        }
+
+        suggestions.forEach((suggestion, index) => {
+          const option = document.createElement("button");
+          option.type = "button";
+          option.id = `${listId}-option-${index}`;
+          option.className = "tag-suggestion";
+          option.setAttribute("role", "option");
+          option.setAttribute("aria-selected", "false");
+          option.innerHTML = `<span>#${escapeHtml(suggestion.name)}</span><small>${suggestion.count}件</small>`;
+          option.addEventListener("mousedown", event => event.preventDefault());
+          option.addEventListener("click", () => selectSuggestion(index));
+          list.appendChild(option);
+        });
+        list.hidden = false;
+        input.setAttribute("aria-expanded", "true");
+      }
+
+      input.addEventListener("focus", () => renderSuggestions(true));
+      input.addEventListener("input", () => renderSuggestions(false));
+      input.addEventListener("blur", closeSuggestions);
+      input.addEventListener("keydown", event => {
+        if (event.key === "Escape" && !list.hidden) {
+          event.preventDefault();
+          closeSuggestions();
+          return;
+        }
+        if ((event.key === "ArrowDown" || event.key === "ArrowUp") && !list.hidden) {
+          event.preventDefault();
+          setActiveIndex(activeIndex + (event.key === "ArrowDown" ? 1 : -1));
+          return;
+        }
+        if (event.key === "Enter" && !list.hidden && activeIndex >= 0) {
+          event.preventDefault();
+          selectSuggestion(activeIndex);
+        }
+      });
     }
 
     function getDomain(url) {
@@ -737,6 +941,8 @@
       const url = typeof item.url === "string" ? item.url : "";
       const savedAtRaw = item.savedAt || item.saved_at;
       const savedAt = new Date(savedAtRaw);
+      const archivedAtRaw = item.archivedAt || item.archived_at;
+      const archivedAt = new Date(archivedAtRaw);
       return {
         id: typeof item.id === "string" && item.id.trim() ? item.id.trim() : generateId(),
         title: typeof item.title === "string" && item.title.trim() ? item.title.trim() : "(タイトルなし)",
@@ -750,6 +956,7 @@
         feedUrl: typeof (item.feedUrl || item.feed_url) === "string" ? (item.feedUrl || item.feed_url) : null,
         highlight: typeof item.highlight === "string" ? item.highlight : null,
         image: extractImageUrl(item.image) ? `![](${extractImageUrl(item.image)})` : null,
+        archivedAt: archivedAtRaw && !Number.isNaN(archivedAt.getTime()) ? archivedAt.toISOString() : null,
       };
     }
 
@@ -826,6 +1033,7 @@
         feed_url: item.feedUrl || null,
         highlight: item.highlight || null,
         image: item.image || null,
+        archived_at: item.archivedAt || null,
         updated_at: new Date().toISOString(),
       };
     }
@@ -844,6 +1052,7 @@
         feedUrl: row.feed_url,
         highlight: row.highlight,
         image: row.image,
+        archivedAt: row.archived_at,
       });
     }
 
@@ -911,19 +1120,31 @@
       }
     }
 
+    function visibleBookmarks() {
+      return bookmarks.filter(b => (showArchived ? Boolean(b.archivedAt) : !b.archivedAt));
+    }
+
     function filterBookmarks() {
       const q = searchQuery.toLowerCase();
-      const sorted = [...bookmarks].sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
+      const sorted = visibleBookmarks().sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
       if (!q) return sorted;
       return sorted.filter(b => [b.title, b.url, b.domain, b.comment, b.highlight, ...(b.tags || [])].join(" ").toLowerCase().includes(q));
+    }
+
+    function archiveIconSvg(size = 14) {
+      return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="5" rx="1"/><path d="M4.5 9v10a1 1 0 0 0 1 1h13a1 1 0 0 0 1-1V9"/><path d="M10 13.5h4"/></svg>`;
+    }
+
+    function unarchiveIconSvg(size = 14) {
+      return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="5" rx="1"/><path d="M4.5 9v10a1 1 0 0 0 1 1h13a1 1 0 0 0 1-1V9"/><path d="M12 18v-4.5"/><path d="m9.5 15.5 2.5-2.5 2.5 2.5"/></svg>`;
     }
 
     function render() {
       const list = document.getElementById("list");
       const items = filterBookmarks();
-      document.getElementById("item-count").textContent = `${bookmarks.length} 件`;
+      document.getElementById("item-count").textContent = `${visibleBookmarks().length} 件`;
       if (!items.length) {
-        list.innerHTML = '<div class="empty">保存されたブックマークはありません</div>';
+        list.innerHTML = `<div class="empty">${showArchived ? "アーカイブされたブックマークはありません" : "保存されたブックマークはありません"}</div>`;
         return;
       }
       list.innerHTML = items.map((b, index) => {
@@ -939,6 +1160,7 @@
                 <div class="meta">${escapeHtml(b.domain)} · ${formatDate(b.savedAt)}</div>
               </div>
               <div class="card-actions">
+                <button class="card-icon-btn archive" data-action="${b.archivedAt ? "unarchive" : "archive"}" title="${b.archivedAt ? "アーカイブから戻す" : "アーカイブ"}" aria-label="${b.archivedAt ? "アーカイブから戻す" : "アーカイブ"}">${b.archivedAt ? unarchiveIconSvg() : archiveIconSvg()}</button>
                 <button class="card-icon-btn edit" data-action="edit" title="編集" aria-label="編集">✎</button>
                 <button class="card-icon-btn delete" data-action="delete" title="削除" aria-label="削除">×</button>
               </div>
@@ -951,7 +1173,9 @@
             <div class="edit-form" hidden>
               <input class="edit-title" value="${escapeHtml(b.title)}" placeholder="タイトル">
               <input class="edit-url" value="${escapeHtml(b.url)}" placeholder="URL">
-              <input class="edit-tags" value="${escapeHtml(b.tags.join(", "))}" placeholder="タグ">
+              <div class="tag-autocomplete">
+                <input class="edit-tags" value="${escapeHtml(b.tags.join(", "))}" placeholder="タグ">
+              </div>
               <textarea class="edit-comment" rows="3" placeholder="コメント">${escapeHtml(b.comment)}</textarea>
               <div class="actions">
                 <button class="primary" data-action="save-edit">保存</button>
@@ -961,6 +1185,7 @@
           </article>
         `;
       }).join("");
+      list.querySelectorAll(".edit-tags").forEach(setupTagAutocomplete);
     }
 
     async function addBookmark(options = {}) {
@@ -985,6 +1210,8 @@
       if (Object.prototype.hasOwnProperty.call(options, "highlight")) {
         changes.highlight = options.highlight || null;
       }
+      // 同一URLを保存し直した場合はアーカイブから戻す
+      changes.archivedAt = null;
       if (existing) Object.assign(existing, changes);
       else bookmarks.push({ id: generateId(), palette: [], publishedAt: null, feedUrl: null, highlight: options.highlight || null, image: null, ...changes });
       await persist();
@@ -1076,6 +1303,7 @@
       initSupabase();
       updateSyncStatus();
       bookmarks = loadLocal();
+      setupTagAutocomplete(document.getElementById("tags-input"));
       render();
       if (hasCloudConfig()) {
         try { await pullCloud(); showToast("Cloudから読み込みました"); } catch { showToast("Cloud読み込みに失敗しました"); }
@@ -1090,6 +1318,15 @@
       document.getElementById("url-input").addEventListener("blur", () => fillTitleFromUrl());
       document.getElementById("btn-sync").addEventListener("click", () => syncFromCloud());
       document.getElementById("search-input").addEventListener("input", e => { searchQuery = e.target.value.trim(); render(); });
+      const archiveViewBtn = document.getElementById("btn-archive-view");
+      archiveViewBtn.addEventListener("click", () => {
+        showArchived = !showArchived;
+        archiveViewBtn.classList.toggle("active", showArchived);
+        archiveViewBtn.title = showArchived ? "ブックマーク一覧に戻る" : "アーカイブを表示";
+        archiveViewBtn.setAttribute("aria-label", archiveViewBtn.title);
+        archiveViewBtn.setAttribute("aria-pressed", String(showArchived));
+        render();
+      });
       document.getElementById("btn-export").addEventListener("click", exportJSON);
       document.getElementById("btn-import").addEventListener("click", () => document.getElementById("import-file").click());
       document.getElementById("import-file").addEventListener("change", async e => {
@@ -1152,15 +1389,22 @@
       });
 
       document.getElementById("list").addEventListener("click", async e => {
-        const action = e.target.dataset.action;
+        const actionEl = e.target.closest("[data-action]");
+        const action = actionEl?.dataset.action;
         if (!action) return;
-        const card = e.target.closest(".card");
+        const card = actionEl.closest(".card");
         const id = card?.dataset.id;
         const item = bookmarks.find(b => b.id === id);
         if (!item) return;
         const form = card.querySelector(".edit-form");
         if (action === "edit") form.hidden = false;
         if (action === "cancel-edit") form.hidden = true;
+        if (action === "archive" || action === "unarchive") {
+          item.archivedAt = action === "archive" ? new Date().toISOString() : null;
+          await persist();
+          render();
+          showToast(action === "archive" ? "アーカイブしました" : "アーカイブから戻しました");
+        }
         if (action === "delete") {
           if (!confirm("このブックマークを削除しますか？")) return;
           bookmarks = bookmarks.filter(b => b.id !== id);
