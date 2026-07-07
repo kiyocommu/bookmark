@@ -12,6 +12,8 @@
   <title>Tab Bookmark Manager Cloud</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { background: #EEF1F8; color-scheme: light; }
+    html.dark { background: #0f1726; color-scheme: dark; }
     :root {
       --bg: #EEF1F8;
       --panel: #E2E7F2;
@@ -60,6 +62,8 @@
     }
     button.primary:hover { filter: brightness(0.95); color: #fff; }
     button.danger { color: #b74a5b; }
+    button.danger:hover { border-color: #b74a5b; color: #b74a5b; }
+    button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     input, textarea {
       width: 100%;
       border: 1px solid var(--line);
@@ -314,6 +318,7 @@
       font-size: 18px;
     }
     .title { font-weight: 700; color: var(--text); text-decoration: none; overflow-wrap: anywhere; }
+    a.title:hover { color: var(--accent); text-decoration: underline; }
     .meta { color: var(--muted); font-size: 12px; }
     .tags { display: flex; gap: 5px; flex-wrap: wrap; }
     .tag {
@@ -597,6 +602,12 @@
       toastTimer = setTimeout(() => el.classList.remove("show"), 1800);
     }
 
+    function applyTheme(dark) {
+      document.body.classList.toggle("dark", dark);
+      document.documentElement.classList.toggle("dark", dark);
+      document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#0f1726" : "#64779f");
+    }
+
     function getAppUrl() {
       const url = new URL(window.location.href);
       url.search = "";
@@ -761,6 +772,7 @@
       input.addEventListener("input", () => renderSuggestions(false));
       input.addEventListener("blur", closeSuggestions);
       input.addEventListener("keydown", event => {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key === "Escape" && !list.hidden) {
           event.preventDefault();
           closeSuggestions();
@@ -780,6 +792,11 @@
 
     function getDomain(url) {
       try { return new URL(url).hostname; } catch { return ""; }
+    }
+
+    const BLOCKED_URL_PROTOCOLS = new Set(["javascript:", "data:", "vbscript:", "blob:"]);
+    function isBlockedUrl(url) {
+      try { return BLOCKED_URL_PROTOCOLS.has(new URL(url).protocol); } catch { return false; }
     }
 
     function normalizeInputUrl(rawUrl) {
@@ -889,9 +906,14 @@
       const urlInput = document.getElementById("url-input");
       const titleInput = document.getElementById("title-input");
       const fetchBtn = document.getElementById("btn-fetch-title");
-      const normalizedUrl = normalizeInputUrl(urlInput.value);
+      const rawUrl = urlInput.value.trim();
+      if (!rawUrl) {
+        if (overwrite) showToast("URLを入力してください");
+        return "";
+      }
+      const normalizedUrl = normalizeInputUrl(rawUrl);
       if (!normalizedUrl) {
-        showToast("URLの形式が正しくありません");
+        if (overwrite) showToast("URLの形式が正しくありません");
         return "";
       }
       if (!overwrite && titleInput.value.trim()) return titleInput.value.trim();
@@ -974,7 +996,12 @@
     }
 
     function saveLocal() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(bookmarks));
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(bookmarks));
+      } catch (error) {
+        console.warn("Local save failed", error);
+        showToast("ローカル保存に失敗しました（容量不足の可能性）");
+      }
     }
 
     function loadCloudConfig() {
@@ -1062,8 +1089,16 @@
       return chunks;
     }
 
+    // Cloud通信の直列化ロック。保存時のpushと手動同期のpullが同時進行しないようにする
+    let syncChain = Promise.resolve();
+    function withSyncLock(task) {
+      const run = syncChain.then(() => task());
+      syncChain = run.then(() => undefined, () => undefined);
+      return run;
+    }
+
     async function pullCloud() {
-      if (!supabaseClient && !initSupabase()) return false;
+      if (!supabaseClient && !initSupabase()) throw new Error("Supabaseクライアントを初期化できません（ライブラリ未読込または設定不足）");
       const { data, error } = await supabaseClient
         .from("tab_bookmarks")
         .select("*")
@@ -1077,7 +1112,7 @@
     }
 
     async function pushCloud() {
-      if (!supabaseClient && !initSupabase()) return false;
+      if (!supabaseClient && !initSupabase()) throw new Error("Supabaseクライアントを初期化できません（ライブラリ未読込または設定不足）");
       const rows = bookmarks.map(toCloudRow);
       for (const rowChunk of chunkArray(rows, CLOUD_BATCH_SIZE)) {
         const { error: upsertError } = await supabaseClient
@@ -1112,7 +1147,7 @@
       saveLocal();
       if (!hasCloudConfig()) return;
       try {
-        await pushCloud();
+        await withSyncLock(pushCloud);
         updateSyncStatus();
       } catch (error) {
         console.warn("Cloud sync failed", error);
@@ -1169,7 +1204,7 @@
             ${b.comment ? `<div class="comment">${escapeHtml(b.comment)}</div>` : ""}
             ${b.highlight ? `<div class="highlight">${escapeHtml(b.highlight)}</div>` : ""}
             ${palette ? `<div class="palette">${palette}</div>` : ""}
-            ${imageUrl ? `<img class="thumb" src="${escapeHtml(imageUrl)}" alt="">` : ""}
+            ${imageUrl ? `<img class="thumb" loading="lazy" src="${escapeHtml(imageUrl)}" alt="">` : ""}
             <div class="edit-form" hidden>
               <input class="edit-title" value="${escapeHtml(b.title)}" placeholder="タイトル">
               <input class="edit-url" value="${escapeHtml(b.url)}" placeholder="URL">
@@ -1193,6 +1228,7 @@
       if (!url) { showToast("URLを入力してください"); return; }
       let normalizedUrl;
       try { normalizedUrl = new URL(url).href; } catch { showToast("URLの形式が正しくありません"); return; }
+      if (isBlockedUrl(normalizedUrl)) { showToast("このURLは保存できません"); return; }
       const existing = bookmarks.find(b => b.url === normalizedUrl);
       if (existing && !options.skipDuplicateConfirm && !confirm("同じURLのブックマークがあります。内容を更新しますか？")) return false;
       let title = options.title ?? document.getElementById("title-input").value.trim();
@@ -1258,7 +1294,7 @@
       }
       showToast(loadingMessage);
       try {
-        await pullCloud();
+        await withSyncLock(pullCloud);
         showToast("同期しました");
         return true;
       } catch (error) {
@@ -1298,7 +1334,7 @@
     }
 
     document.addEventListener("DOMContentLoaded", async () => {
-      document.body.classList.toggle("dark", localStorage.getItem(THEME_KEY) === "dark");
+      applyTheme(localStorage.getItem(THEME_KEY) === "dark");
       updateBookmarkletCode();
       initSupabase();
       updateSyncStatus();
@@ -1306,11 +1342,11 @@
       setupTagAutocomplete(document.getElementById("tags-input"));
       render();
       if (hasCloudConfig()) {
-        try { await pullCloud(); showToast("Cloudから読み込みました"); } catch { showToast("Cloud読み込みに失敗しました"); }
+        try { await withSyncLock(pullCloud); showToast("Cloudから読み込みました"); } catch { showToast("Cloud読み込みに失敗しました"); }
       }
       await handleQuickAdd(readQuickAddParams());
 
-      document.getElementById("btn-add").addEventListener("click", addBookmark);
+      document.getElementById("btn-add").addEventListener("click", () => addBookmark());
       document.getElementById("btn-title-sync").addEventListener("click", () => syncFromCloud());
       document.getElementById("btn-copy-bookmarklet").addEventListener("click", copyBookmarkletCode);
       document.getElementById("btn-fetch-title").addEventListener("click", () => fillTitleFromUrl({ overwrite: true }));
@@ -1342,8 +1378,9 @@
         showToast("全削除しました");
       });
       document.getElementById("btn-theme").addEventListener("click", () => {
-        document.body.classList.toggle("dark");
-        localStorage.setItem(THEME_KEY, document.body.classList.contains("dark") ? "dark" : "light");
+        const dark = !document.body.classList.contains("dark");
+        applyTheme(dark);
+        localStorage.setItem(THEME_KEY, dark ? "dark" : "light");
       });
       document.getElementById("btn-mobile-bookmark").addEventListener("click", () => {
         document.body.classList.toggle("mobile-save-open");
@@ -1372,12 +1409,14 @@
           profileId: document.getElementById("cloud-profile").value,
         });
         try {
-          const localItems = [...bookmarks];
-          await pullCloud();
-          const mergedById = new Map(bookmarks.map(item => [item.id, item]));
-          localItems.forEach(item => mergedById.set(item.id, item));
-          bookmarks = [...mergedById.values()];
-          await pushCloud();
+          await withSyncLock(async () => {
+            const localItems = [...bookmarks];
+            await pullCloud();
+            const mergedById = new Map(bookmarks.map(item => [item.id, item]));
+            localItems.forEach(item => mergedById.set(item.id, item));
+            bookmarks = [...mergedById.values()];
+            await pushCloud();
+          });
           saveLocal();
           render();
           dialog.close();
@@ -1416,6 +1455,7 @@
           const nextUrl = form.querySelector(".edit-url").value.trim();
           let normalizedUrl = nextUrl;
           try { normalizedUrl = new URL(nextUrl).href; } catch {}
+          if (isBlockedUrl(normalizedUrl)) { showToast("このURLは保存できません"); return; }
           item.title = form.querySelector(".edit-title").value.trim() || "(タイトルなし)";
           item.url = normalizedUrl;
           item.domain = getDomain(normalizedUrl);
