@@ -177,7 +177,9 @@
       line-height: 1;
       white-space: nowrap;
     }
-    #btn-fetch-title[disabled] {
+    #btn-fetch-title[disabled],
+    #btn-cloud-qr[disabled],
+    #btn-cloud-copy-link[disabled] {
       cursor: default;
       opacity: 0.58;
     }
@@ -359,6 +361,12 @@
     dialog::backdrop { background: rgba(0, 0, 0, 0.35); }
     .modal-body { padding: 16px; display: grid; gap: 10px; overflow: auto; }
     .modal-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+    .cloud-transfer { border-top: 1px solid var(--line); padding-top: 12px; display: grid; gap: 8px; }
+    .cloud-transfer-note { color: var(--muted); font-size: 12px; }
+    /* QR は読み取り性のため両テーマとも白地に固定する */
+    #cloud-qr-box { justify-self: center; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+    #cloud-qr-box[hidden] { display: none; }
+    #cloud-qr-img { display: block; width: 200px; height: 200px; image-rendering: pixelated; }
     #toast {
       position: fixed;
       left: 50%;
@@ -568,6 +576,17 @@
         <button class="primary" id="btn-cloud-save">保存して同期</button>
         <button id="btn-cloud-local">ローカルモード</button>
       </div>
+      <div class="cloud-transfer">
+        <strong>他の端末に引き継ぐ</strong>
+        <p class="cloud-transfer-note">保存済みの設定を QR コードまたはリンクで別の端末に取り込めます。QR・リンクには anon key が含まれるため、他人に見せないでください。</p>
+        <div class="actions">
+          <button id="btn-cloud-qr">QRコードを表示</button>
+          <button id="btn-cloud-copy-link">リンクをコピー</button>
+        </div>
+        <div id="cloud-qr-box" hidden>
+          <img id="cloud-qr-img" alt="設定引き継ぎ用QRコード">
+        </div>
+      </div>
     </div>
   </dialog>
 
@@ -583,6 +602,8 @@
     const THEME_KEY = "tbm-cloud-theme";
     const DEFAULT_PROFILE = "private-tabs";
     const CLOUD_BATCH_SIZE = 50;
+    const CONFIG_HASH_PREFIX = "#tbm-config=";
+    const QR_LIB_URL = "https://cdn.jsdelivr.net/npm/qrcode-generator@1/qrcode.min.js";
     const MAX_PALETTE = 7;
     const PALETTE_HEX_RE = /^#[0-9a-fA-F]{6}$/;
 
@@ -1045,6 +1066,107 @@
       document.getElementById("sync-status").textContent = hasCloudConfig() ? `sync: ${cloudConfig.profileId}` : "local";
     }
 
+    function encodeBase64Url(text) {
+      const bytes = new TextEncoder().encode(text);
+      let binary = "";
+      bytes.forEach(byte => { binary += String.fromCharCode(byte); });
+      return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    }
+
+    function decodeBase64Url(encoded) {
+      const base64 = encoded.replace(/-/g, "+").replace(/_/g, "/");
+      const binary = atob(base64.padEnd(base64.length + (4 - base64.length % 4) % 4, "="));
+      const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
+      return new TextDecoder().decode(bytes);
+    }
+
+    function buildConfigTransferUrl() {
+      if (!hasCloudConfig()) return null;
+      return getAppUrl() + CONFIG_HASH_PREFIX + encodeBase64Url(JSON.stringify(cloudConfig));
+    }
+
+    function applyConfigFromHash() {
+      const hash = window.location.hash;
+      if (!hash.startsWith(CONFIG_HASH_PREFIX)) return;
+      // 鍵を含むハッシュを URL バー・履歴に残さないよう、処理結果にかかわらず先に除去する
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+      let incoming = null;
+      try {
+        incoming = JSON.parse(decodeBase64Url(hash.slice(CONFIG_HASH_PREFIX.length)));
+      } catch (error) {
+        console.warn("設定引き継ぎリンクの解析に失敗しました", error);
+      }
+      if (!incoming || typeof incoming !== "object") {
+        showToast("引き継ぎリンクを読み取れませんでした");
+        return;
+      }
+      const url = String(incoming.url || "").trim().replace(/\/+$/, "");
+      const anonKey = String(incoming.anonKey || "").trim();
+      const profileId = String(incoming.profileId || "").trim();
+      if (!/^https:\/\/.+/.test(url) || !anonKey || !profileId) {
+        showToast("引き継ぎリンクの内容が正しくありません");
+        return;
+      }
+      const overwriteNote = hasCloudConfig() ? "\n現在の Cloud 設定は上書きされます。" : "";
+      if (!confirm(`共有ID「${profileId}」の Cloud 設定を取り込みますか？${overwriteNote}`)) return;
+      saveCloudConfig({ url, anonKey, profileId });
+      showToast("Cloud設定を取り込みました");
+    }
+
+    let qrLibPromise = null;
+
+    function loadQrLib() {
+      if (window.qrcode) return Promise.resolve();
+      if (!qrLibPromise) {
+        qrLibPromise = new Promise((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = QR_LIB_URL;
+          script.onload = () => resolve();
+          script.onerror = () => {
+            qrLibPromise = null;
+            script.remove();
+            reject(new Error("QRコードライブラリの読み込みに失敗しました"));
+          };
+          document.head.appendChild(script);
+        });
+      }
+      return qrLibPromise;
+    }
+
+    async function showConfigQr() {
+      const transferUrl = buildConfigTransferUrl();
+      if (!transferUrl) {
+        showToast("先に Cloud 設定を保存してください");
+        return;
+      }
+      try {
+        await loadQrLib();
+        const qr = window.qrcode(0, "M");
+        qr.addData(transferUrl);
+        qr.make();
+        document.getElementById("cloud-qr-img").src = qr.createDataURL(6, 4);
+        document.getElementById("cloud-qr-box").hidden = false;
+      } catch (error) {
+        console.warn("QRコードを表示できませんでした", error);
+        showToast("QRを表示できません。リンクのコピーを使ってください");
+      }
+    }
+
+    async function copyConfigTransferUrl() {
+      const transferUrl = buildConfigTransferUrl();
+      if (!transferUrl) {
+        showToast("先に Cloud 設定を保存してください");
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(transferUrl);
+        showToast("引き継ぎリンクをコピーしました");
+      } catch (error) {
+        console.warn("クリップボードへのコピーに失敗しました", error);
+        prompt("このリンクをコピーしてください", transferUrl);
+      }
+    }
+
     function toCloudRow(item) {
       return {
         profile_id: cloudConfig.profileId,
@@ -1336,6 +1458,7 @@
     document.addEventListener("DOMContentLoaded", async () => {
       applyTheme(localStorage.getItem(THEME_KEY) === "dark");
       updateBookmarkletCode();
+      applyConfigFromHash();
       initSupabase();
       updateSyncStatus();
       bookmarks = loadLocal();
@@ -1394,8 +1517,13 @@
         document.getElementById("cloud-url").value = cloudConfig.url;
         document.getElementById("cloud-key").value = cloudConfig.anonKey;
         document.getElementById("cloud-profile").value = cloudConfig.profileId;
+        document.getElementById("cloud-qr-box").hidden = true;
+        document.getElementById("btn-cloud-qr").disabled = !hasCloudConfig();
+        document.getElementById("btn-cloud-copy-link").disabled = !hasCloudConfig();
         dialog.showModal();
       });
+      document.getElementById("btn-cloud-qr").addEventListener("click", () => { showConfigQr(); });
+      document.getElementById("btn-cloud-copy-link").addEventListener("click", () => { copyConfigTransferUrl(); });
       document.getElementById("btn-cloud-close").addEventListener("click", () => dialog.close());
       document.getElementById("btn-cloud-local").addEventListener("click", () => {
         saveCloudConfig({ url: "", anonKey: "", profileId: DEFAULT_PROFILE });
